@@ -24,6 +24,7 @@ import {
 } from "./lib/timesgate";
 import {
   imageFileToCanvas,
+  renderCradleScreen,
   renderDigital,
   renderNewtonsCradle,
   renderSolid,
@@ -77,6 +78,7 @@ export default function App() {
   const [clockX, setClockX] = useState(39);
   const [clockY, setClockY] = useState(32);
   const [clockBg, setClockBg] = useState<BgPreset>("dark");
+  const [cradleRandom, setCradleRandom] = useState(false);
 
   const previewRef = useRef<HTMLCanvasElement>(null);
 
@@ -144,15 +146,26 @@ export default function App() {
     }
     const cmds: Command[] = [resetHttpGifId()];
     resetPicIdCounter();
+    // Newton's cradle: when all 5 screens are selected, one sphere per screen
+    // spans the device; otherwise a full 5-ball cradle on each chosen screen.
+    if (template === "ball") {
+      const numSwing = cradleRandom ? (Math.random() < 0.5 ? 1 : 2) : 1;
+      if (screens.length === SCREEN_COUNT) {
+        for (let i = 0; i < SCREEN_COUNT; i++) {
+          const b64 = await framesToB64(renderCradleScreen(i, 40, { numSwing }));
+          cmds.push(...buildAnimation(i, b64, 45));
+        }
+      } else {
+        const b64 = await framesToB64(renderNewtonsCradle(40, { numSwing }));
+        cmds.push(...buildAnimation(screens, b64, 45));
+      }
+      return cmds;
+    }
     let canvases: HTMLCanvasElement[];
-    let speed = 1000;
+    const speed = 1000;
     switch (template) {
       case "solid":
         canvases = [renderSolid(solidColor)];
-        break;
-      case "ball":
-        canvases = renderNewtonsCradle(40);
-        speed = 45;
         break;
       case "image":
         if (!imageCanvas) throw new Error("no image chosen");
@@ -166,7 +179,7 @@ export default function App() {
     return cmds;
   }, [
     template, screens, solidColor, textColor, textValue, seconds,
-    imageCanvas, clockBig, clockX, clockY, clockBg, textBg,
+    imageCanvas, clockBig, clockX, clockY, clockBg, textBg, cradleRandom,
   ]);
 
   // Core push, shared by the manual Send button and the live re-push tick.
@@ -181,7 +194,8 @@ export default function App() {
     }
     const withToken = cmds.map((c) => ({ ...c, LocalToken: Number(cfg.localToken) }));
     const r = await pushSequence(cfg.bridgePort, cfg.deviceIp, withToken);
-    const label = screens.length > 1 ? `screens ${screens.join(", ")}` : `screen ${screens[0]}`;
+    const shown = screens.map((s) => s + 1); // screens are 0-based internally, 1-based in UI
+    const label = shown.length > 1 ? `screens ${shown.join(", ")}` : `screen ${shown[0]}`;
     return friendly(r, `Sent — ${label} updated. ✓`);
   }, [cfg, bridge, buildCommands, screens]);
 
@@ -343,7 +357,7 @@ export default function App() {
               className={screens.includes(i) ? "screen on" : "screen"}
               onClick={() => toggleScreen(i)}
             >
-              {i}
+              {i + 1}
             </button>
           ))}
           <button onClick={() => setScreens([0, 1, 2, 3, 4])}>All</button>
@@ -445,6 +459,21 @@ export default function App() {
               />
             </label>
           )}
+          {template === "ball" && (
+            <>
+              <label className="check">
+                <input
+                  type="checkbox"
+                  checked={cradleRandom}
+                  onChange={(e) => setCradleRandom(e.target.checked)}
+                />
+                randomize (vary how many spheres swing)
+              </label>
+              <span className="hint">
+                Pick <b>All</b> screens for one sphere per screen — a cradle across the whole device.
+              </span>
+            </>
+          )}
         </div>
       </section>
 
@@ -454,7 +483,9 @@ export default function App() {
           <canvas ref={previewRef} width={128} height={128} className="preview" />
           <div className="send-col">
             <button className="send" disabled={busy || !screens.length} onClick={send}>
-              {busy ? "Sending…" : `Send to screen ${screens.join(",")}`}
+              {busy
+                ? "Sending…"
+                : `Send to screen ${screens.map((s) => s + 1).join(",")}`}
             </button>
             {reply !== null && (
               <p className={reply.ok ? "msg ok" : "msg bad"}>{reply.msg}</p>

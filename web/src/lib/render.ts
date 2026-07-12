@@ -164,60 +164,112 @@ export function renderBall(
   return out;
 }
 
-/** Newton's cradle animation frames — outer balls swing alternately. */
+function drawBall(
+  g: CanvasRenderingContext2D,
+  px: number,
+  py: number,
+  bx: number,
+  by: number,
+  r: number,
+  ballColor: string,
+) {
+  g.strokeStyle = "#3A4256";
+  g.lineWidth = 1;
+  g.beginPath();
+  g.moveTo(px, py);
+  g.lineTo(bx, by);
+  g.stroke();
+  g.fillStyle = ballColor;
+  g.beginPath();
+  g.arc(bx, by, r, 0, Math.PI * 2);
+  g.fill();
+  g.fillStyle = "rgba(255,255,255,0.85)";
+  g.beginPath();
+  g.arc(bx - r / 3, by - r / 3, r / 4, 0, Math.PI * 2);
+  g.fill();
+}
+
+const THETA_MAX = 0.62;
+
+/**
+ * Newton's cradle on ONE screen: five balls, the outer `numSwing` balls on each
+ * side swing together (1 = classic, 2 = two-up like a real cradle).
+ */
 export function renderNewtonsCradle(
   frames = 40,
-  opts: { bg?: string; ball?: string } = {},
+  opts: { bg?: string; ball?: string; numSwing?: number } = {},
 ): HTMLCanvasElement[] {
   const bg = opts.bg ?? "#08081A";
   const ballColor = opts.ball ?? "#C0C6D4";
+  const numSwing = Math.max(1, Math.min(opts.numSwing ?? 1, 2));
   const r = 11;
   const n = 5;
-  const gap = 2 * r; // balls just touching
+  const gap = 2 * r;
   const pivotY = 16;
-  const L = 78; // string length
-  const startX = (IMG_SIZE - (n - 1) * gap) / 2; // centre the row
+  const L = 78;
+  const startX = (IMG_SIZE - (n - 1) * gap) / 2;
   const pivots = Array.from({ length: n }, (_, i) => ({ x: startX + i * gap, y: pivotY }));
-  const thetaMax = 0.62;
 
   const out: HTMLCanvasElement[] = [];
   for (let f = 0; f < frames; f++) {
     const s = Math.sin((f / frames) * Math.PI * 2);
-    const leftTheta = s < 0 ? s * thetaMax : 0; // negative -> swings left
-    const rightTheta = s > 0 ? s * thetaMax : 0; // positive -> swings right
-
+    const leftTheta = s < 0 ? s * THETA_MAX : 0;
+    const rightTheta = s > 0 ? s * THETA_MAX : 0;
     const c = newCanvas();
     const g = c.getContext("2d")!;
     g.fillStyle = bg;
     g.fillRect(0, 0, IMG_SIZE, IMG_SIZE);
-
     for (let i = 0; i < n; i++) {
       let theta = 0;
-      if (i === 0) theta = leftTheta;
-      else if (i === n - 1) theta = rightTheta;
+      if (i < numSwing) theta = leftTheta; // leftmost group
+      else if (i >= n - numSwing) theta = rightTheta; // rightmost group
       const bx = pivots[i].x + L * Math.sin(theta);
       const by = pivots[i].y + L * Math.cos(theta);
-      // string
-      g.strokeStyle = "#3A4256";
-      g.lineWidth = 1;
-      g.beginPath();
-      g.moveTo(pivots[i].x, pivots[i].y);
-      g.lineTo(bx, by);
-      g.stroke();
-      // ball
-      g.fillStyle = ballColor;
-      g.beginPath();
-      g.arc(bx, by, r, 0, Math.PI * 2);
-      g.fill();
-      // highlight
-      g.fillStyle = "rgba(255,255,255,0.85)";
-      g.beginPath();
-      g.arc(bx - r / 3, by - r / 3, r / 4, 0, Math.PI * 2);
-      g.fill();
+      drawBall(g, pivots[i].x, pivots[i].y, bx, by, r, ballColor);
     }
-    // top bar
     g.fillStyle = "#4A5268";
     g.fillRect(startX - r, pivotY - 3, (n - 1) * gap + 2 * r, 3);
+    out.push(c);
+  }
+  return out;
+}
+
+/**
+ * One ball of a cradle that spans all 5 screens (one sphere per screen).
+ * `screenIdx` 0-4 decides the ball's role: the outer `numSwing` screens on each
+ * side swing; the middle screens hang still. All screens share the same phase so
+ * the motion reads as a single cradle across the device.
+ */
+export function renderCradleScreen(
+  screenIdx: number,
+  frames = 40,
+  opts: { bg?: string; ball?: string; numSwing?: number } = {},
+): HTMLCanvasElement[] {
+  const bg = opts.bg ?? "#08081A";
+  const ballColor = opts.ball ?? "#C0C6D4";
+  const numSwing = Math.max(1, Math.min(opts.numSwing ?? 1, 2));
+  const r = 16;
+  const px = IMG_SIZE / 2;
+  const pivotY = 12;
+  const L = 92;
+  const isLeft = screenIdx < numSwing;
+  const isRight = screenIdx >= 5 - numSwing;
+
+  const out: HTMLCanvasElement[] = [];
+  for (let f = 0; f < frames; f++) {
+    const s = Math.sin((f / frames) * Math.PI * 2);
+    let theta = 0;
+    if (isLeft) theta = s < 0 ? s * THETA_MAX : 0;
+    else if (isRight) theta = s > 0 ? s * THETA_MAX : 0;
+    const bx = px + L * Math.sin(theta);
+    const by = pivotY + L * Math.cos(theta);
+    const c = newCanvas();
+    const g = c.getContext("2d")!;
+    g.fillStyle = bg;
+    g.fillRect(0, 0, IMG_SIZE, IMG_SIZE);
+    g.fillStyle = "#4A5268";
+    g.fillRect(0, pivotY - 3, IMG_SIZE, 3); // rail across, lines up screen-to-screen
+    drawBall(g, px, pivotY, bx, by, r, ballColor);
     out.push(c);
   }
   return out;

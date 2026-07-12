@@ -206,7 +206,7 @@ export function buildScrollingText(
           x: 0,
           y: opts.y ?? 52,
           dir: 0,
-          font: 4, // general font with letters that scrolls on overflow (verified)
+          font: 2, // 16x16 — biggest letter font that still scrolls (verified)
           TextWidth: 128, // full-width scroll region
           Textheight: 16,
           speed: opts.speed ?? 20,
