@@ -43,7 +43,7 @@ import {
   type Game,
 } from "./lib/sports";
 
-const APP_VERSION = "0.7.0";
+const APP_VERSION = "0.7.1";
 
 type TemplateId = "solid" | "digital" | "ball" | "image" | "text" | "scores";
 const TEMPLATES: { id: TemplateId; label: string }[] = [

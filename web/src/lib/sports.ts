@@ -8,6 +8,7 @@
 // Everything degrades to null/"—" on error.
 
 import {
+  labelTile,
   loadImage,
   renderBigText,
   renderLogoPixelArt,
@@ -149,10 +150,12 @@ export async function renderScreens(game: Game, league: League): Promise<HTMLCan
   const hf = homeFirst(league);
   const left = hf ? game.home : game.away;
   const right = hf ? game.away : game.home;
-  const [leftLogo, rightLogo] = await Promise.all([
+  const [leftLogoRaw, rightLogoRaw] = await Promise.all([
     logoPixelArt(left.logo),
     logoPixelArt(right.logo),
   ]);
+  const leftLogo = labelTile(leftLogoRaw, left.abbr);
+  const rightLogo = labelTile(rightLogoRaw, right.abbr);
   let s1: HTMLCanvasElement, s2: HTMLCanvasElement, s3: HTMLCanvasElement;
 
   if (game.state === "pre") {

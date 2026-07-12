@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.7.1 — 2026-07-11
+
+- Scoreboard logo tiles now carry the team abbreviation in a bottom label, so a
+  pixelated crest is still identifiable at a glance.
+
 ## 0.7.0 — 2026-07-11
 
 - **9 more leagues** in the Sports scoreboard: NBA, NHL, and soccer — MLS,

@@ -328,6 +328,23 @@ export function renderTwoLine(
   return c;
 }
 
+/** Overlay a team label on a logo tile (bottom band) so a pixelated crest is
+ * still identifiable. */
+export function labelTile(logo: HTMLCanvasElement, label: string): HTMLCanvasElement {
+  const c = newCanvas();
+  const g = c.getContext("2d")!;
+  g.drawImage(logo, 0, 0);
+  const h = 30;
+  g.fillStyle = "rgba(6,10,18,0.85)";
+  g.fillRect(0, IMG_SIZE - h, IMG_SIZE, h);
+  g.fillStyle = "#FFFFFF";
+  g.textAlign = "center";
+  g.textBaseline = "middle";
+  fitFont(g, label || " ", 120, 22);
+  g.fillText(label || " ", IMG_SIZE / 2, IMG_SIZE - h / 2 + 1);
+  return c;
+}
+
 /** Load an image with CORS enabled so the canvas stays exportable (ESPN sends
  * Access-Control-Allow-Origin: *). */
 export function loadImage(url: string): Promise<HTMLImageElement> {
