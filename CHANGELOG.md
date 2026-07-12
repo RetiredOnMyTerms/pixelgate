@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.4 — 2026-07-11
+
+- Newton's cradle "All screens": all 5 screens' frames are sent in one atomic
+  `Draw/CommandList` so the per-screen loops start together and stay in phase
+  (independent sends drifted out of sync).
+
 ## 0.4.3 — 2026-07-11
 
 - Send button and confirmation say "all screens" when every screen is selected

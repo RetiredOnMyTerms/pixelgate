@@ -16,8 +16,12 @@ import {
   buildDigitalClock,
   buildScrollingText,
   canvasToJpegBase64,
+  commandList,
+  lcdMask,
+  nextPicId,
   resetHttpGifId,
   resetPicIdCounter,
+  sendHttpGifFrame,
   SCREEN_COUNT,
   type BgPreset,
   type Command,
@@ -31,7 +35,7 @@ import {
   renderText,
 } from "./lib/render";
 
-const APP_VERSION = "0.4.3";
+const APP_VERSION = "0.4.4";
 
 type TemplateId = "solid" | "digital" | "ball" | "image" | "text";
 const TEMPLATES: { id: TemplateId; label: string }[] = [
@@ -159,10 +163,24 @@ export default function App() {
     if (template === "ball") {
       const numSwing = cradleRandom ? (Math.random() < 0.5 ? 1 : 2) : 1;
       if (screens.length === SCREEN_COUNT) {
+        // All 5 screens: build every screen's frames into ONE Draw/CommandList
+        // so the device starts them together (independent per-screen loops would
+        // otherwise drift out of phase). Fewer frames keeps the payload sane.
+        const FRAMES = 24;
+        const packets: Command[] = [];
         for (let i = 0; i < SCREEN_COUNT; i++) {
-          const b64 = await framesToB64(renderCradleScreen(i, 40, { numSwing }));
-          cmds.push(...buildAnimation(i, b64, 45));
+          const b64 = await framesToB64(renderCradleScreen(i, FRAMES, { numSwing }));
+          const mask = lcdMask(i);
+          const picId = nextPicId();
+          b64.forEach((data, off) =>
+            packets.push(
+              sendHttpGifFrame({
+                mask, picNum: b64.length, picOffset: off, picId, picSpeed: 60, picData: data,
+              }),
+            ),
+          );
         }
+        cmds.push(commandList(packets));
       } else {
         const b64 = await framesToB64(renderNewtonsCradle(40, { numSwing }));
         cmds.push(...buildAnimation(screens, b64, 45));

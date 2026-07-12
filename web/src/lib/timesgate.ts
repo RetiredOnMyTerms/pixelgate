@@ -55,6 +55,14 @@ export async function canvasToJpegBase64(
 
 export const resetHttpGifId = (): Command => ({ Command: "Draw/ResetHttpGifId" });
 
+/** Wrap sub-commands in one Draw/CommandList so the device applies them
+ * atomically (used to start all 5 screens' animations in sync). LocalToken goes
+ * on the OUTER command only (added at send time), never on the sub-commands. */
+export const commandList = (commands: Command[]): Command => ({
+  Command: "Draw/CommandList",
+  CommandList: commands,
+});
+
 /** One Draw/SendHttpGif packet (one frame). */
 export function sendHttpGifFrame(opts: {
   mask: number[];
