@@ -31,7 +31,7 @@ import {
   renderText,
 } from "./lib/render";
 
-const APP_VERSION = "0.4.2";
+const APP_VERSION = "0.4.3";
 
 type TemplateId = "solid" | "digital" | "ball" | "image" | "text";
 const TEMPLATES: { id: TemplateId; label: string }[] = [
@@ -44,6 +44,14 @@ const TEMPLATES: { id: TemplateId; label: string }[] = [
 
 async function framesToB64(canvases: HTMLCanvasElement[]): Promise<string[]> {
   return Promise.all(canvases.map((c) => canvasToJpegBase64(c)));
+}
+
+// Human label for the selected screens (1-based; "all screens" when every one).
+function describeScreens(screens: number[]): string {
+  if (screens.length === SCREEN_COUNT) return "all screens";
+  if (screens.length > 1) return `screens ${screens.map((s) => s + 1).join(", ")}`;
+  if (screens.length === 1) return `screen ${screens[0] + 1}`;
+  return "no screens";
 }
 
 const BG_PRESET_HEX: Record<BgPreset, string> = {
@@ -194,9 +202,7 @@ export default function App() {
     }
     const withToken = cmds.map((c) => ({ ...c, LocalToken: Number(cfg.localToken) }));
     const r = await pushSequence(cfg.bridgePort, cfg.deviceIp, withToken);
-    const shown = screens.map((s) => s + 1); // screens are 0-based internally, 1-based in UI
-    const label = shown.length > 1 ? `screens ${shown.join(", ")}` : `screen ${shown[0]}`;
-    return friendly(r, `Sent — ${label} updated. ✓`);
+    return friendly(r, `Sent — ${describeScreens(screens)} updated. ✓`);
   }, [cfg, bridge, buildCommands, screens]);
 
   const send = useCallback(async () => {
@@ -483,9 +489,7 @@ export default function App() {
           <canvas ref={previewRef} width={128} height={128} className="preview" />
           <div className="send-col">
             <button className="send" disabled={busy || !screens.length} onClick={send}>
-              {busy
-                ? "Sending…"
-                : `Send to screen ${screens.map((s) => s + 1).join(",")}`}
+              {busy ? "Sending…" : `Send to ${describeScreens(screens)}`}
             </button>
             {reply !== null && (
               <p className={reply.ok ? "msg ok" : "msg bad"}>{reply.msg}</p>

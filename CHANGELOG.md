@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.3 — 2026-07-11
+
+- Send button and confirmation say "all screens" when every screen is selected
+  (instead of listing 1,2,3,4,5).
+
 ## 0.4.2 — 2026-07-11
 
 - **Scrolling text fixed end-to-end.** The echo Function returns the Divoom
