@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.1 — 2026-07-11
+
+- Sharper team logos: higher pixel-art resolution (grid 44 → 80) and lighter
+  colour quantization (5 → 8 levels), so crests keep detail instead of looking
+  blocky.
+
 ## 0.8.0 — 2026-07-11
 
 - **UI redesign with Radix Themes** — polished, accessible components (buttons,

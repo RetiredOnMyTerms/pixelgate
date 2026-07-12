@@ -364,11 +364,12 @@ export function loadImage(url: string): Promise<HTMLImageElement> {
  */
 export function renderLogoPixelArt(
   img: HTMLImageElement,
-  opts: { bg?: string; grid?: number; contrast?: number } = {},
+  opts: { bg?: string; grid?: number; contrast?: number; levels?: number } = {},
 ): HTMLCanvasElement {
-  const grid = opts.grid ?? 44; // pixel resolution before upscale
+  const grid = opts.grid ?? 80; // pixel resolution before upscale (higher = sharper)
   const bg = opts.bg ?? "#FFFFFF";
-  const contrast = opts.contrast ?? 1.25;
+  const contrast = opts.contrast ?? 1.15;
+  const step = 256 / (opts.levels ?? 8); // quantize step; more levels = truer colour
 
   const small = document.createElement("canvas");
   small.width = grid;
@@ -392,7 +393,7 @@ export function renderLogoPixelArt(
   const q = (v: number) => {
     v = (v - 128) * contrast + 128;
     v = Math.max(0, Math.min(255, v));
-    return Math.min(255, Math.round(v / 64) * 64);
+    return Math.min(255, Math.round(v / step) * step);
   };
   for (let i = 0; i < p.length; i += 4) {
     p[i] = q(p[i]);

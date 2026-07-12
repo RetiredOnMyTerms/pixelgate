@@ -61,7 +61,7 @@ import {
   type Game,
 } from "./lib/sports";
 
-const APP_VERSION = "0.8.0";
+const APP_VERSION = "0.8.1";
 
 type TemplateId = "solid" | "digital" | "ball" | "image" | "text" | "scores";
 const TEMPLATE_LABEL: Record<TemplateId, string> = {
