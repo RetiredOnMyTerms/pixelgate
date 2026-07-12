@@ -21,7 +21,7 @@ export function renderSolid(color: string): HTMLCanvasElement {
 /** Analog clock — one frame for a given time. Loop client-side to "tick". */
 export function renderClock(
   d: Date,
-  opts: { bg?: string; face?: string; accent?: string } = {},
+  opts: { bg?: string; face?: string; accent?: string; seconds?: boolean } = {},
 ): HTMLCanvasElement {
   const bg = opts.bg ?? "#000000";
   const face = opts.face ?? "#141828";
@@ -61,7 +61,7 @@ export function renderClock(
   const s = d.getSeconds();
   hand((h + m / 60) / 12, R * 0.5, "#E6E6FF", 5);
   hand((m + s / 60) / 60, R * 0.75, "#E6E6FF", 3);
-  hand(s / 60, R * 0.85, accent, 1);
+  if (opts.seconds !== false) hand(s / 60, R * 0.85, accent, 1);
   g.fillStyle = accent;
   g.beginPath();
   g.arc(C, C, 3, 0, Math.PI * 2);

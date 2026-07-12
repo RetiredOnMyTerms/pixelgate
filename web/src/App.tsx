@@ -14,12 +14,10 @@ import {
 import {
   buildAnimation,
   buildDigitalClock,
+  buildScrollingText,
   canvasToJpegBase64,
-  lcdMask,
-  firstActive,
   resetHttpGifId,
   resetPicIdCounter,
-  sendHttpText,
   SCREEN_COUNT,
   type BgPreset,
   type Command,
@@ -33,7 +31,7 @@ import {
   renderText,
 } from "./lib/render";
 
-const APP_VERSION = "0.4.0";
+const APP_VERSION = "0.4.1";
 
 type TemplateId = "solid" | "clock" | "digital" | "ball" | "image" | "text";
 const TEMPLATES: { id: TemplateId; label: string }[] = [
@@ -76,6 +74,7 @@ export default function App() {
   const [textValue, setTextValue] = useState("HELLO TIMES GATE");
   const [textColor, setTextColor] = useState("#00E5FF");
   const [bgColor, setBgColor] = useState("#05070F");
+  const [textBg, setTextBg] = useState<BgPreset>("dark");
   const [seconds, setSeconds] = useState(true);
   const [imageCanvas, setImageCanvas] = useState<HTMLCanvasElement | null>(null);
   // digital clock (on-device) tuning
@@ -105,7 +104,7 @@ export default function App() {
       case "solid":
         return renderSolid(solidColor);
       case "clock":
-        return renderClock(new Date());
+        return renderClock(new Date(), { seconds: live });
       case "digital":
         return renderDigital(new Date(), { bg: BG_PRESET_HEX[clockBg], color: textColor, seconds });
       case "ball":
@@ -115,7 +114,7 @@ export default function App() {
       case "text":
         return renderText(textValue, textColor, bgColor);
     }
-  }, [template, solidColor, bgColor, textColor, textValue, seconds, imageCanvas, clockBg]);
+  }, [template, solidColor, bgColor, textColor, textValue, seconds, imageCanvas, clockBg, live]);
 
   // Only the analog clock uses re-push; digital self-updates on-device.
   useEffect(() => {
@@ -151,21 +150,12 @@ export default function App() {
         bg: clockBg,
       });
     }
+    // Scrolling text is on-device (ItemList type 23 via our echo Function).
+    if (template === "text") {
+      return buildScrollingText(screens, { text: textValue, color: textColor, bg: textBg });
+    }
     const cmds: Command[] = [resetHttpGifId()];
     resetPicIdCounter();
-    if (template === "text") {
-      const bg = await framesToB64([renderSolid(bgColor)]);
-      cmds.push(...buildAnimation(screens, bg, 1000));
-      cmds.push(
-        sendHttpText({
-          lcdIndex: firstActive(lcdMask(screens)),
-          text: textValue,
-          color: textColor,
-          speed: 60,
-        }),
-      );
-      return cmds;
-    }
     let canvases: HTMLCanvasElement[];
     let speed = 1000;
     switch (template) {
@@ -173,7 +163,7 @@ export default function App() {
         canvases = [renderSolid(solidColor)];
         break;
       case "clock":
-        canvases = [renderClock(new Date())];
+        canvases = [renderClock(new Date(), { seconds: live })];
         break;
       case "ball":
         canvases = renderBall(30);
@@ -191,7 +181,7 @@ export default function App() {
     return cmds;
   }, [
     template, screens, solidColor, bgColor, textColor, textValue, seconds,
-    imageCanvas, clockBig, clockX, clockY, clockBg,
+    imageCanvas, clockBig, clockX, clockY, clockBg, textBg, live,
   ]);
 
   // Core push, shared by the manual Send button and the live re-push tick.
@@ -466,13 +456,20 @@ export default function App() {
                 <input value={textValue} onChange={(e) => setTextValue(e.target.value)} />
               </label>
               <label>
-                Text
+                Colour
                 <input type="color" value={textColor} onChange={(e) => setTextColor(e.target.value)} />
               </label>
               <label>
                 Background
-                <input type="color" value={bgColor} onChange={(e) => setBgColor(e.target.value)} />
+                <select value={textBg} onChange={(e) => setTextBg(e.target.value as BgPreset)}>
+                  <option value="dark">Dark</option>
+                  <option value="black">Black</option>
+                  <option value="navy">Navy</option>
+                  <option value="plum">Plum</option>
+                  <option value="white">White</option>
+                </select>
               </label>
+              <span className="hint">Scrolls on-device when longer than the screen. Ticks itself — no re-push.</span>
             </>
           )}
           {template === "image" && (
@@ -489,10 +486,13 @@ export default function App() {
             </label>
           )}
           {template === "clock" && (
-            <label className="check" title="Analog clock is a snapshot. Enable to re-push every second so the hands move. Runs in the background — you can keep using the app.">
-              <input type="checkbox" checked={live} onChange={(e) => setLive(e.target.checked)} />
-              live tick (re-push so the hands move)
-            </label>
+            <>
+              <label className="check" title="Analog clock is a snapshot (the device can't draw a live analog face). Enable to re-push every second so the hands move — runs quietly in the background. Off = a clean static face with no second hand.">
+                <input type="checkbox" checked={live} onChange={(e) => setLive(e.target.checked)} />
+                live tick (re-push so the hands move)
+              </label>
+              <span className="hint">Analog is a snapshot. For a self-updating clock use Digital.</span>
+            </>
           )}
           {liveMsg && <span className="livemsg">{liveMsg}</span>}
         </div>

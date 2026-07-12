@@ -166,7 +166,46 @@ export function sendHttpItemList(opts: {
 // Hosted solid background gifs (device fetches these; palette index 0 is an
 // unused sentinel so the solid colour isn't treated as transparent).
 export const BG_BASE = "https://pixelgate.pages.dev/bg/solid-";
+// Pages Function that echoes ?t=<text> as {"DispData": text} for type-23 net-text.
+export const ECHO_BASE = "https://pixelgate.pages.dev/api/echo";
 export type BgPreset = "dark" | "black" | "navy" | "plum" | "white";
+
+/**
+ * Scrolling text / marquee via on-device SendHttpItemList type 23 (net-text).
+ * The device polls our echo Function for the text and scrolls it when it
+ * overflows TextWidth. font 2 (has letters) at full width.
+ */
+export function buildScrollingText(
+  screens: number | number[],
+  opts: { text: string; color: string; bg: BgPreset; speed?: number; y?: number },
+): Command[] {
+  const list = typeof screens === "number" ? [screens] : screens;
+  const bgUrl = `${BG_BASE}${opts.bg}.gif`;
+  const url = `${ECHO_BASE}?t=${encodeURIComponent(opts.text)}`;
+  return list.map((s) =>
+    sendHttpItemList({
+      lcdIndex: s,
+      newFlag: 1,
+      backgroundGif: bgUrl,
+      items: [
+        {
+          TextId: 1,
+          type: 23, // net-text: polls the URL, scrolls on overflow
+          x: 0,
+          y: opts.y ?? 52,
+          dir: 0,
+          font: 2, // general font with letters (numeral fonts have no A-Z)
+          TextWidth: 128, // full-width scroll region
+          Textheight: 16,
+          speed: opts.speed ?? 30,
+          color: opts.color,
+          update_time: 60,
+          TextString: url,
+        },
+      ],
+    }),
+  );
+}
 
 // Fonts that actually render on this firmware. Big built-in fonts (242/256/260…)
 // silently blank, so the "large" option tops out at font 90.

@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.4.1 — 2026-07-11
+
+- **Scrolling text / marquee now works** — switched from the unreliable
+  `Draw/SendHttpText` to on-device `SendHttpItemList` type 23 (net-text). A new
+  Cloudflare Pages Function (`web/functions/api/echo.js`) echoes the message as
+  `{"DispData": …}`; the device polls it and scrolls the text full-width when it
+  overflows the screen. Self-updating, no re-push. Background is a preset.
+- **Analog clock** clarified as a snapshot (the device can't render a live analog
+  face): the second hand is hidden when static so it doesn't look frozen, with a
+  hint to use Digital for a self-updating clock. Enable "live tick" to animate.
+
 ## 0.4.0 — 2026-07-11
 
 - **On-device self-updating digital clock.** The Digital clock template now uses
