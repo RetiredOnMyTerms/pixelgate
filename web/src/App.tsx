@@ -16,6 +16,7 @@ import {
   Slider,
   Switch,
   Text,
+  TextArea,
   TextField,
 } from "@radix-ui/themes";
 import { loadConfig, saveConfig, type Config } from "./lib/store";
@@ -54,6 +55,7 @@ import {
   renderWeather,
 } from "./lib/render";
 import { fetchWeather, type WeatherData } from "./lib/weather";
+import { createCrawl, createRain, createStarship, type Effect } from "./lib/effects";
 import {
   fetchTeamGame,
   homeFirst,
@@ -78,9 +80,11 @@ import {
   type ProviderId,
 } from "./lib/flight";
 
-const APP_VERSION = "0.11.0";
+const APP_VERSION = "0.12.0";
 
-type TemplateId = "solid" | "digital" | "ball" | "image" | "text" | "scores" | "flight" | "weather";
+type TemplateId =
+  | "solid" | "digital" | "ball" | "image" | "text" | "scores" | "flight" | "weather"
+  | "rain" | "crawl" | "starship";
 const TEMPLATE_LABEL: Record<TemplateId, string> = {
   digital: "Digital clock",
   text: "Marquee",
@@ -90,6 +94,9 @@ const TEMPLATE_LABEL: Record<TemplateId, string> = {
   scores: "Sports scoreboard",
   flight: "Flight tracker",
   weather: "Weather",
+  rain: "Digital rain",
+  crawl: "Opening crawl",
+  starship: "Starship flyby",
 };
 const GROUPS: { label: string; items: TemplateId[] }[] = [
   { label: "Clock", items: ["digital"] },
@@ -97,7 +104,9 @@ const GROUPS: { label: string; items: TemplateId[] }[] = [
   { label: "Graphics", items: ["ball", "image", "solid"] },
   { label: "Live", items: ["scores", "flight"] },
   { label: "Data", items: ["weather"] },
+  { label: "Effects", items: ["rain", "crawl", "starship"] },
 ];
+const EFFECT_IDS: TemplateId[] = ["rain", "crawl", "starship"];
 
 const DEFAULT_TEAM: Record<string, string> = { nfl: "26", mlb: "12" };
 function loadFav(league: string): string {
@@ -148,6 +157,13 @@ const FAQ: { q: string; a: string }[] = [
 // User-facing highlights (full technical log lives in CHANGELOG.md on GitHub).
 const CHANGES: { v: string; notes: string[] }[] = [
   {
+    v: "0.12",
+    notes: [
+      "Visual Effects: three animated effects with Play/Stop — Digital rain (Matrix binary), Opening crawl (yellow perspective scroll text you can type yourself), and a pixel-art Starship flyby across all 5 screens.",
+      "Effects run on one screen or stretched across all 5, and revert to your previous display when stopped.",
+    ],
+  },
+  {
     v: "0.11",
     notes: [
       "Weather widget: enter a city for live current conditions from Open-Meteo (no API key) — icon, temperature in both °F and °C, and today's high / low.",
@@ -180,8 +196,8 @@ const CHANGES: { v: string; notes: string[] }[] = [
   { v: "0.2", notes: ["Hosted web app + local bridge; 5-screen targeting with live preview."] },
 ];
 
-async function framesToB64(canvases: HTMLCanvasElement[]): Promise<string[]> {
-  return Promise.all(canvases.map((c) => canvasToJpegBase64(c)));
+async function framesToB64(canvases: HTMLCanvasElement[], quality?: number): Promise<string[]> {
+  return Promise.all(canvases.map((c) => canvasToJpegBase64(c, quality)));
 }
 
 function describeScreens(screens: number[]): string {
@@ -279,6 +295,22 @@ export default function App() {
   const [weatherCanvas, setWeatherCanvas] = useState<HTMLCanvasElement | null>(null);
   const [weatherStatus, setWeatherStatus] = useState<Friendly | null>(null);
 
+  // visual effects
+  const [rainSpans, setRainSpans] = useState<"single" | "all">("all");
+  const [rainSpeed, setRainSpeed] = useState(0.55);
+  const [crawlSpans, setCrawlSpans] = useState<"single" | "all">("all");
+  const [crawlTitle, setCrawlTitle] = useState("A long time ago");
+  const [crawlText, setCrawlText] = useState(
+    "In a galaxy far, far away, five little screens sat upon a desk, waiting to display something wonderful.",
+  );
+  const [crawlSpeed, setCrawlSpeed] = useState(1.1);
+  const [crawlLoops, setCrawlLoops] = useState(0); // 0 = forever
+  const [starSpeed, setStarSpeed] = useState(220); // timesteps to cross all 5
+  const [starLoop, setStarLoop] = useState(true);
+  const [effectPreview, setEffectPreview] = useState<HTMLCanvasElement[]>([]);
+  const [effectRunning, setEffectRunning] = useState(false);
+  const effectStop = useRef<null | (() => void)>(null);
+
   const previewRef = useRef<HTMLCanvasElement>(null);
   const stripRef = useRef<HTMLCanvasElement>(null);
   const prevTemplate = useRef<TemplateId>("digital");
@@ -368,9 +400,16 @@ export default function App() {
     g.imageSmoothingEnabled = false;
     g.fillStyle = "#000";
     g.fillRect(0, 0, cv.width, cv.height);
-    const strip = template === "flight" ? flightScreens : scoreScreens;
-    strip.forEach((s, i) => g.drawImage(s, i * 128, 0));
-  }, [scoreScreens, flightScreens, template]);
+    const eff = EFFECT_IDS.includes(template);
+    const effAllLocal =
+      template === "starship" ||
+      (template === "rain" && rainSpans === "all") ||
+      (template === "crawl" && crawlSpans === "all");
+    const strip = template === "flight" ? flightScreens
+      : eff && effAllLocal ? effectPreview
+      : scoreScreens;
+    strip.forEach((s, i) => s && g.drawImage(s, i * 128, 0));
+  }, [scoreScreens, flightScreens, effectPreview, template, rainSpans, crawlSpans]);
 
   useEffect(() => {
     flightRef.current = flight;
@@ -441,6 +480,161 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [template]);
 
+  // ---- visual effects ----------------------------------------------------
+  // Build a fresh effect generator from the current template + options.
+  const makeRunner = useCallback((): Effect => {
+    if (template === "rain") return createRain({ spans: rainSpans, speed: rainSpeed });
+    if (template === "crawl")
+      return createCrawl({ spans: crawlSpans, title: crawlTitle, text: crawlText, speed: crawlSpeed, loops: crawlLoops });
+    return createStarship({ speed: starSpeed, loop: starLoop });
+  }, [template, rainSpans, rainSpeed, crawlSpans, crawlTitle, crawlText, crawlSpeed, crawlLoops, starSpeed, starLoop]);
+
+  // A static preview frame (a representative moment mid-animation).
+  useEffect(() => {
+    if (!EFFECT_IDS.includes(template)) return;
+    const runner = makeRunner();
+    let row: HTMLCanvasElement[] | undefined;
+    if (runner.mode === "loop") {
+      const frames = runner.nextBatch(runner.loopLen);
+      const frac = template === "starship" ? 0.5 : template === "crawl" ? 0.5 : 0.27;
+      const idx = Math.floor(runner.loopLen * frac);
+      row = frames[Math.min(idx, frames.length - 1)] ?? frames[0];
+    } else {
+      runner.nextBatch(28); // warm a stream effect so content is on screen
+      row = runner.nextBatch(1)[0];
+    }
+    if (row) setEffectPreview(row);
+  }, [template, makeRunner]);
+
+  // Turn a batch of timesteps into device commands (one on-device animation the
+  // device plays smoothly; all-screen effects go in one atomic CommandList).
+  const batchToCommands = useCallback(
+    async (batch: HTMLCanvasElement[][], spans: "single" | "all", effScreens: number[], picSpeed: number): Promise<Command[]> => {
+      const B = batch.length;
+      if (!B) return [];
+      // Effect frames (noisy rain / starfield) compress poorly at high quality and
+      // a 5-screen loop is a lot of frames in one push, so encode leaner to keep the
+      // CommandList payload well under the device's limit.
+      const EFFECT_Q = 0.55;
+      if (spans === "all") {
+        const packets: Command[] = [];
+        for (let s = 0; s < SCREEN_COUNT; s++) {
+          const frames = batch.map((row) => row[s]);
+          const b64 = await framesToB64(frames, EFFECT_Q);
+          const pid = nextPicId();
+          b64.forEach((data, off) =>
+            packets.push(sendHttpGifFrame({ mask: lcdMask(s), picNum: B, picOffset: off, picId: pid, picSpeed, picData: data })),
+          );
+        }
+        return [commandList(packets)];
+      }
+      const frames = batch.map((row) => row[0]);
+      const b64 = await framesToB64(frames, EFFECT_Q);
+      return buildAnimation(effScreens, b64, picSpeed);
+    },
+    [],
+  );
+
+  const revertLastGood = useCallback(() => {
+    if (bridge.ok && cfg.deviceIp && lastGood.current) {
+      const restore = lastGood.current.map((c) => ({ ...c, LocalToken: Number(cfg.localToken) }));
+      pushSequence(cfg.bridgePort, cfg.deviceIp, restore).catch(() => {});
+    }
+  }, [bridge.ok, cfg]);
+
+  const stopEffect = useCallback((revert: boolean) => {
+    effectStop.current?.();
+    effectStop.current = null;
+    setEffectRunning(false);
+    setReply({ ok: true, msg: revert ? "Stopped — reverted to your previous display." : "Stopped." });
+    if (revert) revertLastGood();
+  }, [revertLastGood]);
+
+  const startEffect = useCallback(async () => {
+    setReply(null);
+    setScript(null);
+    if (!cfg.deviceIp || !cfg.localToken)
+      return setReply({ ok: false, msg: "Enter your device IP + LocalToken first." });
+    if (!bridge.ok)
+      return setReply({ ok: false, msg: "Start the local bridge to run live effects." });
+    effectStop.current?.();
+    const runner = makeRunner();
+    const spans = runner.spans;
+    const effScreens = spans === "all" ? [0, 1, 2, 3, 4] : screens.length ? screens : [0];
+    const token = Number(cfg.localToken);
+    const push = (cmds: Command[]) =>
+      pushSequence(cfg.bridgePort, cfg.deviceIp, cmds.map((c) => ({ ...c, LocalToken: token })));
+    resetPicIdCounter();
+    setEffectRunning(true);
+    setReply({ ok: true, msg: `Playing ${TEMPLATE_LABEL[template]}… press Stop to end.` });
+
+    if (runner.mode === "loop") {
+      // Push ONE self-contained loop and let the device loop it natively — no
+      // ongoing stream, so nothing rewinds. (rain, starship)
+      try {
+        const batch = runner.nextBatch(runner.loopLen);
+        const cmds = await batchToCommands(batch, spans, effScreens, runner.picSpeed);
+        await push([resetHttpGifId()]);
+        await push(cmds);
+      } catch {
+        setEffectRunning(false);
+        return setReply({ ok: false, msg: "Couldn't start the effect — is the bridge still running?" });
+      }
+      if (runner.loopForever) {
+        // Nothing to tick; the device loops. Stop = revert.
+        effectStop.current = () => {};
+      } else {
+        // Play `runCount` passes, then revert to the previous display.
+        const t = window.setTimeout(() => {
+          effectStop.current = null;
+          setEffectRunning(false);
+          setReply({ ok: true, msg: "Effect finished. ▸ reverted to your previous display." });
+          revertLastGood();
+        }, runner.loopLen * runner.picSpeed * Math.max(1, runner.runCount) + 500);
+        effectStop.current = () => clearTimeout(t);
+      }
+      return;
+    }
+
+    // Stream mode: push ONE static frame per tick (PicNum=1), so there is no
+    // on-device animation to rewind. (opening crawl)
+    let stopped = false;
+    let timer: number | undefined;
+    const tick = async () => {
+      if (stopped) return;
+      try {
+        const batch = runner.nextBatch(1);
+        if (batch.length) await push(await batchToCommands(batch, spans, effScreens, runner.picSpeed));
+      } catch { /* transient — keep going */ }
+      if (stopped) return;
+      if (runner.done) {
+        effectStop.current = null;
+        setEffectRunning(false);
+        setReply({ ok: true, msg: "Effect finished. ▸ reverted to your previous display." });
+        window.setTimeout(revertLastGood, 500);
+        return;
+      }
+      timer = window.setTimeout(tick, runner.picSpeed);
+    };
+    effectStop.current = () => {
+      stopped = true;
+      if (timer) clearTimeout(timer);
+    };
+    try {
+      await push([resetHttpGifId()]);
+    } catch { /* ignore */ }
+    tick();
+  }, [cfg, bridge.ok, makeRunner, screens, template, batchToCommands, revertLastGood]);
+
+  // Stop any running effect when the template changes or the component unmounts.
+  useEffect(() => {
+    return () => {
+      effectStop.current?.();
+      effectStop.current = null;
+      setEffectRunning(false);
+    };
+  }, [template]);
+
   const buildPreview = useCallback(async (): Promise<HTMLCanvasElement | null> => {
     switch (template) {
       case "solid":
@@ -455,11 +649,17 @@ export default function App() {
         return renderText(textValue, textColor, BG_PRESET_HEX[textBg]);
       case "weather":
         return weatherCanvas;
+      case "rain":
+        return rainSpans === "all" ? null : effectPreview[0] ?? null;
+      case "crawl":
+        return crawlSpans === "all" ? null : effectPreview[0] ?? null;
+      case "starship":
+        return null; // always spans all 5 -> shown in the strip preview
       case "scores":
       case "flight":
         return null;
     }
-  }, [template, solidColor, textColor, textValue, seconds, imageCanvas, clockBg, textBg, weatherCanvas]);
+  }, [template, solidColor, textColor, textValue, seconds, imageCanvas, clockBg, textBg, weatherCanvas, effectPreview, rainSpans, crawlSpans]);
 
   useEffect(() => {
     let cancelled = false;
@@ -716,7 +916,12 @@ export default function App() {
   const isScores = template === "scores";
   const isFlight = template === "flight";
   const isWeather = template === "weather";
-  const isStrip = isScores || isFlight;
+  const isEffect = EFFECT_IDS.includes(template);
+  const effAll =
+    template === "starship" ||
+    (template === "rain" && rainSpans === "all") ||
+    (template === "crawl" && crawlSpans === "all");
+  const isStrip = isScores || isFlight || (isEffect && effAll);
   const bgSelect = (value: BgPreset, onChange: (v: BgPreset) => void) => (
     <Select.Root value={value} onValueChange={(v) => onChange(v as BgPreset)}>
       <Select.Trigger />
@@ -1023,6 +1228,87 @@ export default function App() {
                 </Text>
               </>
             )}
+
+            {template === "rain" && (
+              <>
+                <label className="field">
+                  <Text size="1" color="gray">Screens</Text>
+                  <Select.Root value={rainSpans} onValueChange={(v) => setRainSpans(v as "single" | "all")}>
+                    <Select.Trigger />
+                    <Select.Content>
+                      <Select.Item value="all">All 5 (one wide field)</Select.Item>
+                      <Select.Item value="single">Chosen screens</Select.Item>
+                    </Select.Content>
+                  </Select.Root>
+                </label>
+                <label className="field" style={{ minWidth: 160 }}>
+                  <Text size="1" color="gray">Speed · {rainSpeed.toFixed(2)}</Text>
+                  <Slider value={[rainSpeed]} min={0.3} max={1.3} step={0.05} onValueChange={([v]) => setRainSpeed(v)} />
+                </label>
+                <Text size="1" color="gray" style={{ flexBasis: "100%" }}>
+                  Binary rain — green 0/1 columns with a bright leading character and a fading trail.
+                  Loops continuously until you press Stop.
+                </Text>
+              </>
+            )}
+
+            {template === "crawl" && (
+              <>
+                <label className="field">
+                  <Text size="1" color="gray">Screens</Text>
+                  <Select.Root value={crawlSpans} onValueChange={(v) => setCrawlSpans(v as "single" | "all")}>
+                    <Select.Trigger />
+                    <Select.Content>
+                      <Select.Item value="all">All 5 (wide crawl)</Select.Item>
+                      <Select.Item value="single">Chosen screens</Select.Item>
+                    </Select.Content>
+                  </Select.Root>
+                </label>
+                <label className="field" style={{ minWidth: 200 }}>
+                  <Text size="1" color="gray">Title</Text>
+                  <TextField.Root value={crawlTitle} placeholder="Title line" onChange={(e) => setCrawlTitle(e.target.value)} />
+                </label>
+                <label className="field" style={{ minWidth: 260, flex: 1 }}>
+                  <Text size="1" color="gray">Crawl text</Text>
+                  <TextArea value={crawlText} rows={3} placeholder="The scrolling body text…" onChange={(e) => setCrawlText(e.target.value)} />
+                </label>
+                <label className="field" style={{ minWidth: 150 }}>
+                  <Text size="1" color="gray">Speed · {crawlSpeed.toFixed(2)}</Text>
+                  <Slider value={[crawlSpeed]} min={0.5} max={2.5} step={0.1} onValueChange={([v]) => setCrawlSpeed(v)} />
+                </label>
+                <label className="field">
+                  <Text size="1" color="gray">Loops</Text>
+                  <Select.Root value={String(crawlLoops)} onValueChange={(v) => setCrawlLoops(Number(v))}>
+                    <Select.Trigger />
+                    <Select.Content>
+                      <Select.Item value="0">Forever</Select.Item>
+                      <Select.Item value="1">Once</Select.Item>
+                      <Select.Item value="2">Twice</Select.Item>
+                      <Select.Item value="3">3×</Select.Item>
+                    </Select.Content>
+                  </Select.Root>
+                </label>
+                <Text size="1" color="gray" style={{ flexBasis: "100%" }}>
+                  Yellow perspective scroll text — a stylistic homage. Type your own title and body above.
+                </Text>
+              </>
+            )}
+
+            {template === "starship" && (
+              <>
+                <label className="field" style={{ minWidth: 180 }}>
+                  <Text size="1" color="gray">Flight time · {starSpeed} steps (higher = slower)</Text>
+                  <Slider value={[starSpeed]} min={80} max={400} step={10} onValueChange={([v]) => setStarSpeed(v)} />
+                </label>
+                <Text as="label" size="2">
+                  <Flex gap="2" align="center"><Switch checked={starLoop} onCheckedChange={setStarLoop} />loop</Flex>
+                </Text>
+                <Text size="1" color="gray" style={{ flexBasis: "100%" }}>
+                  A pixel-art starship crosses all 5 screens left-to-right over a drifting starfield,
+                  with a warp-glow trail. Always spans the full row.
+                </Text>
+              </>
+            )}
           </Flex>
         </Card>
 
@@ -1036,9 +1322,21 @@ export default function App() {
               <canvas ref={previewRef} width={128} height={128} className="preview" />
             )}
             <Box style={{ flex: 1, minWidth: 240 }}>
-              <Button size="3" style={{ width: "100%", maxWidth: 360 }} disabled={busy || !screens.length} onClick={send}>
-                {busy ? "Sending…" : `Send to ${describeScreens(screens)}`}
-              </Button>
+              {isEffect ? (
+                effectRunning ? (
+                  <Button size="3" color="red" style={{ width: "100%", maxWidth: 360 }} onClick={() => stopEffect(true)}>
+                    ■ Stop effect
+                  </Button>
+                ) : (
+                  <Button size="3" style={{ width: "100%", maxWidth: 360 }} disabled={effAll ? false : !screens.length} onClick={startEffect}>
+                    ▶ Play {TEMPLATE_LABEL[template]}
+                  </Button>
+                )
+              ) : (
+                <Button size="3" style={{ width: "100%", maxWidth: 360 }} disabled={busy || !screens.length} onClick={send}>
+                  {busy ? "Sending…" : `Send to ${describeScreens(screens)}`}
+                </Button>
+              )}
               {reply && <Msg m={reply} />}
             </Box>
           </Flex>

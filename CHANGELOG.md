@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.12.0 — 2026-07-12
+
+- **Visual Effects mode** — a new "Effects" group with three animated effects,
+  each with Play/Stop controls that override the current display and revert to it
+  when stopped:
+  - **Digital rain** — Matrix-style binary (0/1) columns, green with a bright
+    leading character and a fading trail; randomized per-column speed and
+    character-swap rate. Runs on the chosen screens or as one dense 640-wide field.
+  - **Opening crawl** — a stylistic yellow perspective scroll (title + your own
+    body text), lines shrinking and compressing as they recede toward the top;
+    loops forever or a set number of times.
+  - **Starship flyby** — a pixel-art starship silhouette crossing all 5 screens
+    left-to-right over a drifting, twinkling starfield, with a warp-glow trail;
+    configurable flight time and loop/once.
+- Effects push **one self-contained loop** and let the firmware loop it natively
+  (the Newton's-cradle model) rather than streaming frames — so there's no
+  constant "receiving" hourglass and nothing rewinds. Each effect is a seamless
+  ≤36-frame loop; all-5 effects go in a single atomic `Draw/CommandList`, and the
+  frames are JPEG-encoded leaner (noisy rain/starfield) to keep the payload well
+  under the device's per-call limit.
+
 ## 0.11.0 — 2026-07-12
 
 - **Weather widget** (new "Data" widget group). Enter a city name — geocoded via
