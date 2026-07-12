@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.0 — 2026-07-11
+
+- In-app onboarding: a "Where do I find my LocalToken?" help panel in the Connect
+  section showing three annotated Divoom-app screenshots (select device → open
+  Settings → copy Local Token), served from `web/public/onboarding/`.
+- The annotated screenshots redact the user's real Local Token, IP address, and
+  Wi-Fi SSID. Raw source screenshots are gitignored and never committed.
+
 ## 0.2.0 — 2026-07-11
 
 Turned the CLI into a product: hosted web app + local bridge (PixelGate).

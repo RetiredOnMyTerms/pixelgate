@@ -17,6 +17,12 @@ node_modules/
 # Logs & scratch
 *.log
 
+# Raw device screenshots (contain the real LocalToken/IP — only the redacted,
+# annotated copies under web/public/onboarding/ are committed)
+/image*.jpeg
+/image*.jpg
+/image*.png
+
 # Secrets / local config (never commit)
 .env
 .env.*.local

@@ -202,6 +202,48 @@ button:hover {
   color: var(--muted);
 }
 
+.link {
+  background: none;
+  border: none;
+  color: var(--accent);
+  padding: 8px 0 0;
+  cursor: pointer;
+  font-size: 13px;
+  text-decoration: underline;
+}
+
+.help {
+  margin-top: 10px;
+  color: var(--muted);
+}
+
+.help-steps {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+
+.help-steps figure {
+  margin: 0;
+  flex: 1 1 180px;
+  max-width: 220px;
+}
+
+.help-steps img {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: block;
+}
+
+.help-steps figcaption {
+  color: var(--text);
+  font-size: 12px;
+  margin-top: 6px;
+  text-align: center;
+}
+
 .script textarea {
   width: 100%;
   background: #0d1220;

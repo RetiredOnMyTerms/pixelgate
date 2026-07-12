@@ -28,7 +28,7 @@ import {
   renderSolid,
 } from "./lib/render";
 
-const APP_VERSION = "0.2.0";
+const APP_VERSION = "0.3.0";
 
 type TemplateId = "solid" | "clock" | "digital" | "ball" | "image" | "text";
 const TEMPLATES: { id: TemplateId; label: string }[] = [
@@ -53,6 +53,7 @@ export default function App() {
   const [reply, setReply] = useState<DeviceReply | string | null>(null);
   const [script, setScript] = useState<string | null>(null);
   const [live, setLive] = useState(false);
+  const [showHelp, setShowHelp] = useState(false);
 
   // template params
   const [solidColor, setSolidColor] = useState("#00C8FF");
@@ -271,6 +272,31 @@ export default function App() {
               : `bridge not detected — ${bridge.error}. Live push disabled; you can still generate a script.`}
           </span>
         </div>
+        <button className="link" onClick={() => setShowHelp((v) => !v)}>
+          {showHelp ? "Hide help" : "Where do I find my LocalToken?"}
+        </button>
+        {showHelp && (
+          <div className="help">
+            <p>
+              The LocalToken is a short number shown in the Divoom phone app. Follow
+              these three steps, then paste it into the LocalToken box above.
+            </p>
+            <div className="help-steps">
+              {[
+                { n: 1, img: "step1.jpg", cap: "Tap your Times Gate device" },
+                { n: 2, img: "step2.jpg", cap: "Open its Settings" },
+                { n: 3, img: "step3.jpg", cap: "Copy the Local Token" },
+              ].map((s) => (
+                <figure key={s.n}>
+                  <img src={`${import.meta.env.BASE_URL}onboarding/${s.img}`} alt={s.cap} />
+                  <figcaption>
+                    {s.n}. {s.cap}
+                  </figcaption>
+                </figure>
+              ))}
+            </div>
+          </div>
+        )}
       </section>
 
       <section className="panel">
