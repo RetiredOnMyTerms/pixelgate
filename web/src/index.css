@@ -1,0 +1,6 @@
+/* PixelGate — global reset only; component styles live in App.css */
+html,
+body,
+#root {
+  height: 100%;
+}

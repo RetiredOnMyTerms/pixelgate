@@ -1,0 +1,24 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# PyInstaller build artifacts (spec is kept as source)
+bridge/build/
+bridge/dist/
+build/
+dist/
+
+# Node / Vite
+web/node_modules/
+web/dist/
+node_modules/
+
+# Logs & scratch
+*.log
+
+# Secrets / local config (never commit)
+.env
+.env.*.local
+.env.local
+*.secrets.local
