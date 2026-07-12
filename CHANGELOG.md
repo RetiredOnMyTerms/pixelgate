@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.9.0 — 2026-07-11
+
+- **Flight tracker widget**. Enter a flight number (and your own free AviationStack
+  API key, stored only in your browser); the 5 screens show: airline logo,
+  origin airport, departure/arrival times + time remaining, destination airport,
+  flight code. Origin left, destination right.
+- Countdown switches automatically: time-to-departure before the flight leaves,
+  time-to-arrival once it's airborne. Poll rate adapts — slow far out, ~2 min
+  near/during the flight (under the free 1-req/min limit).
+- On landed / cancelled, the screens **revert to the previously-shown widget**.
+- Airline logos via a keyless proxy Function (Kiwi source + CORS), then the same
+  pixel-art pipeline as team logos.
+
 ## 0.8.1 — 2026-07-11
 
 - Sharper team logos: higher pixel-art resolution (grid 44 → 80) and lighter

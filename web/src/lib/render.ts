@@ -345,6 +345,32 @@ export function labelTile(logo: HTMLCanvasElement, label: string): HTMLCanvasEle
   return c;
 }
 
+/** Three stacked centred lines (e.g. departure / arrival / time remaining). */
+export function renderThreeLine(
+  l1: string,
+  l2: string,
+  l3: string,
+  opts: { bg?: string; c1?: string; c2?: string; c3?: string } = {},
+): HTMLCanvasElement {
+  const c = newCanvas();
+  const g = c.getContext("2d")!;
+  g.fillStyle = opts.bg ?? "#000000";
+  g.fillRect(0, 0, IMG_SIZE, IMG_SIZE);
+  g.textAlign = "center";
+  g.textBaseline = "middle";
+  const rows: [string, string, number][] = [
+    [l1, opts.c1 ?? "#FFFFFF", 30],
+    [l2, opts.c2 ?? "#FFFFFF", 64],
+    [l3, opts.c3 ?? "#00E5FF", 98],
+  ];
+  for (const [txt, col, y] of rows) {
+    g.fillStyle = col;
+    fitFont(g, txt || " ", 122, 30);
+    g.fillText(txt || " ", IMG_SIZE / 2, y);
+  }
+  return c;
+}
+
 /** Load an image with CORS enabled so the canvas stays exportable (ESPN sends
  * Access-Control-Allow-Origin: *). */
 export function loadImage(url: string): Promise<HTMLImageElement> {

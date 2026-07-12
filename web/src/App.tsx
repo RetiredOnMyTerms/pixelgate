@@ -60,10 +60,17 @@ import {
   renderScreens,
   type Game,
 } from "./lib/sports";
+import {
+  fetchFlight,
+  flightPollMs,
+  isOver,
+  renderFlightScreens,
+  type FlightInfo,
+} from "./lib/flight";
 
-const APP_VERSION = "0.8.1";
+const APP_VERSION = "0.9.0";
 
-type TemplateId = "solid" | "digital" | "ball" | "image" | "text" | "scores";
+type TemplateId = "solid" | "digital" | "ball" | "image" | "text" | "scores" | "flight";
 const TEMPLATE_LABEL: Record<TemplateId, string> = {
   digital: "Digital clock",
   text: "Marquee",
@@ -71,12 +78,13 @@ const TEMPLATE_LABEL: Record<TemplateId, string> = {
   image: "Image",
   solid: "Solid colour",
   scores: "Sports scoreboard",
+  flight: "Flight tracker",
 };
 const GROUPS: { label: string; items: TemplateId[] }[] = [
   { label: "Clock", items: ["digital"] },
   { label: "Text", items: ["text"] },
   { label: "Graphics", items: ["ball", "image", "solid"] },
-  { label: "Live sports", items: ["scores"] },
+  { label: "Live", items: ["scores", "flight"] },
 ];
 
 const DEFAULT_TEAM: Record<string, string> = { nfl: "26", mlb: "12" };
@@ -220,9 +228,18 @@ export default function App() {
   const [scoreScreens, setScoreScreens] = useState<HTMLCanvasElement[]>([]);
   const [scoreStatus, setScoreStatus] = useState<Friendly | null>(null);
   const [scoreAuto, setScoreAuto] = useState(false);
+  // flight tracker
+  const [asKey, setAsKey] = useState<string>(() => localStorage.getItem("pixelgate.asKey") || "");
+  const [flightCode, setFlightCode] = useState<string>(() => localStorage.getItem("pixelgate.flight") || "");
+  const [flight, setFlight] = useState<FlightInfo | null>(null);
+  const [flightScreens, setFlightScreens] = useState<HTMLCanvasElement[]>([]);
+  const [flightStatus, setFlightStatus] = useState<Friendly | null>(null);
+  const [flightAuto, setFlightAuto] = useState(false);
 
   const previewRef = useRef<HTMLCanvasElement>(null);
-  const scoresPreviewRef = useRef<HTMLCanvasElement>(null);
+  const stripRef = useRef<HTMLCanvasElement>(null);
+  const prevTemplate = useRef<TemplateId>("digital");
+  const lastGood = useRef<Command[] | null>(null); // last non-flight push, for revert
 
   const persist = (next: Config) => {
     setCfg(next);
@@ -245,6 +262,19 @@ export default function App() {
   const chooseTeam = (id: string) => {
     setFavTeam(id);
     localStorage.setItem(`pixelgate.fav.${league}`, id);
+  };
+  const selectTemplate = (id: TemplateId) => {
+    if (id === "flight" && template !== "flight") prevTemplate.current = template;
+    setTemplate(id);
+  };
+  const setKey = (v: string) => {
+    setAsKey(v);
+    localStorage.setItem("pixelgate.asKey", v);
+  };
+  const setCode = (v: string) => {
+    const u = v.toUpperCase();
+    setFlightCode(u);
+    localStorage.setItem("pixelgate.flight", u);
   };
 
   const refreshScores = useCallback(async () => {
@@ -273,14 +303,43 @@ export default function App() {
   }, [template, league, favTeam, refreshScores]);
 
   useEffect(() => {
-    const cv = scoresPreviewRef.current;
+    const cv = stripRef.current;
     if (!cv) return;
     const g = cv.getContext("2d")!;
     g.imageSmoothingEnabled = false;
     g.fillStyle = "#000";
     g.fillRect(0, 0, cv.width, cv.height);
-    scoreScreens.forEach((s, i) => g.drawImage(s, i * 128, 0));
-  }, [scoreScreens]);
+    const strip = template === "flight" ? flightScreens : scoreScreens;
+    strip.forEach((s, i) => g.drawImage(s, i * 128, 0));
+  }, [scoreScreens, flightScreens, template]);
+
+  // Fetch + render the tracked flight (preview and manual send).
+  const refreshFlight = useCallback(async () => {
+    setFlightStatus(null);
+    if (!asKey) return setFlightStatus({ ok: false, msg: "Enter your AviationStack API key first." });
+    if (!flightCode) return setFlightStatus({ ok: false, msg: "Enter a flight number (e.g. DL903)." });
+    try {
+      const f = await fetchFlight(asKey, flightCode);
+      if (!f) {
+        setFlight(null);
+        setFlightScreens([]);
+        setFlightStatus({ ok: false, msg: "Flight not found (free tier is real-time only — try an active/soon flight)." });
+        return;
+      }
+      setFlight(f);
+      setFlightScreens(await renderFlightScreens(f));
+      setFlightStatus({ ok: true, msg: `${f.dep.iata} → ${f.arr.iata} · ${f.status}` });
+    } catch (e) {
+      setFlightStatus({ ok: false, msg: `AviationStack error: ${(e as Error).message}` });
+    }
+  }, [asKey, flightCode]);
+
+  useEffect(() => {
+    if (template === "flight") {
+      setScreens([0, 1, 2, 3, 4]);
+      if (asKey && flightCode) refreshFlight();
+    }
+  }, [template, refreshFlight, asKey, flightCode]);
 
   const buildPreview = useCallback(async (): Promise<HTMLCanvasElement | null> => {
     switch (template) {
@@ -295,6 +354,7 @@ export default function App() {
       case "text":
         return renderText(textValue, textColor, BG_PRESET_HEX[textBg]);
       case "scores":
+      case "flight":
         return null;
     }
   }, [template, solidColor, textColor, textValue, seconds, imageCanvas, clockBg, textBg]);
@@ -330,6 +390,15 @@ export default function App() {
         const g = game ?? (await fetchTeamGame(lg.path, favTeam));
         if (!g) throw new Error("no game data");
         sc = await renderScreens(g, lg);
+      }
+      return sportsCommands(sc);
+    }
+    if (template === "flight") {
+      let sc = flightScreens;
+      if (sc.length !== SCREEN_COUNT) {
+        const f = flight ?? (await fetchFlight(asKey, flightCode));
+        if (!f) throw new Error("no flight data");
+        sc = await renderFlightScreens(f);
       }
       return sportsCommands(sc);
     }
@@ -375,6 +444,7 @@ export default function App() {
     template, screens, solidColor, textColor, textValue, seconds,
     imageCanvas, clockBig, clockX, clockY, clockBg, textBg, cradleRandom,
     scoreScreens, game, league, favTeam,
+    flightScreens, flight, asKey, flightCode,
   ]);
 
   useEffect(() => {
@@ -408,6 +478,51 @@ export default function App() {
     };
   }, [scoreAuto, template, bridge.ok, cfg.deviceIp, cfg.localToken, cfg.bridgePort, league, favTeam]);
 
+  // Flight tracker polling: slow far from departure, faster near/during the
+  // flight; on landed/cancelled, revert to the previously-shown widget.
+  useEffect(() => {
+    if (!(flightAuto && template === "flight" && bridge.ok && cfg.deviceIp && cfg.localToken && asKey && flightCode)) return;
+    let stopped = false;
+    let timer: number | undefined;
+    const push = async (canvases: HTMLCanvasElement[]) => {
+      const cmds = (await sportsCommands(canvases)).map((c) => ({ ...c, LocalToken: Number(cfg.localToken) }));
+      await pushSequence(cfg.bridgePort, cfg.deviceIp, cmds);
+    };
+    const tick = async () => {
+      if (stopped) return;
+      try {
+        const f = await fetchFlight(asKey, flightCode);
+        if (f) {
+          setFlight(f);
+          const sc = await renderFlightScreens(f);
+          setFlightScreens(sc);
+          await push(sc);
+          if (isOver(f)) {
+            setFlightStatus({ ok: true, msg: `${f.status} — reverting to previous widget` });
+            setFlightAuto(false);
+            if (lastGood.current) {
+              const restore = lastGood.current.map((c) => ({ ...c, LocalToken: Number(cfg.localToken) }));
+              window.setTimeout(() => pushSequence(cfg.bridgePort, cfg.deviceIp, restore), 8000);
+            }
+            return; // stop tracking
+          }
+          setFlightStatus({ ok: true, msg: `Updated ${new Date().toLocaleTimeString()} · ${f.status}` });
+          const next = flightPollMs(f);
+          if (!stopped && next > 0) timer = window.setTimeout(tick, next);
+        } else if (!stopped) {
+          timer = window.setTimeout(tick, 5 * 60_000);
+        }
+      } catch {
+        if (!stopped) timer = window.setTimeout(tick, 60_000);
+      }
+    };
+    tick();
+    return () => {
+      stopped = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, [flightAuto, template, bridge.ok, cfg.deviceIp, cfg.localToken, cfg.bridgePort, asKey, flightCode]);
+
   const doPush = useCallback(async (): Promise<Friendly> => {
     const cmds = await buildCommands();
     if (!bridge.ok) {
@@ -419,8 +534,9 @@ export default function App() {
     }
     const withToken = cmds.map((c) => ({ ...c, LocalToken: Number(cfg.localToken) }));
     const r = await pushSequence(cfg.bridgePort, cfg.deviceIp, withToken);
+    if (template !== "flight") lastGood.current = cmds; // remember for flight revert
     return friendly(r, `Sent — ${describeScreens(screens)} updated. ✓`);
-  }, [cfg, bridge, buildCommands, screens]);
+  }, [cfg, bridge, buildCommands, screens, template]);
 
   const send = useCallback(async () => {
     setReply(null);
@@ -472,6 +588,8 @@ export default function App() {
   };
 
   const isScores = template === "scores";
+  const isFlight = template === "flight";
+  const isStrip = isScores || isFlight;
   const bgSelect = (value: BgPreset, onChange: (v: BgPreset) => void) => (
     <Select.Root value={value} onValueChange={(v) => onChange(v as BgPreset)}>
       <Select.Trigger />
@@ -582,7 +700,7 @@ export default function App() {
                 <Text size="1" color="gray" weight="medium" as="div" mb="1">{grp.label}</Text>
                 <Flex gap="2" wrap="wrap">
                   {grp.items.map((id) => (
-                    <Button key={id} variant={template === id ? "solid" : "surface"} onClick={() => setTemplate(id)}>
+                    <Button key={id} variant={template === id ? "solid" : "surface"} onClick={() => selectTemplate(id)}>
                       {TEMPLATE_LABEL[id]}
                     </Button>
                   ))}
@@ -692,6 +810,39 @@ export default function App() {
                 )}
               </>
             )}
+
+            {isFlight && (
+              <>
+                <label className="field" style={{ minWidth: 220 }}>
+                  <Text size="1" color="gray">
+                    AviationStack API key{" "}
+                    <Link href="https://aviationstack.com/signup/free" target="_blank" rel="noopener noreferrer" size="1">
+                      (get a free key)
+                    </Link>
+                  </Text>
+                  <TextField.Root type="password" value={asKey} placeholder="your key (stays in your browser)"
+                    onChange={(e) => setKey(e.target.value)} />
+                </label>
+                <label className="field">
+                  <Text size="1" color="gray">Flight number</Text>
+                  <TextField.Root value={flightCode} placeholder="e.g. DL903"
+                    onChange={(e) => setCode(e.target.value)} />
+                </label>
+                <Button variant="soft" onClick={refreshFlight}>Track</Button>
+                <Text as="label" size="2" title="Poll AviationStack and re-push — slow far from departure, ~2 min near/during the flight (stays under the free 1-req/min limit). Reverts to your previous widget when the flight lands or is cancelled.">
+                  <Flex gap="2" align="center"><Switch checked={flightAuto} onCheckedChange={setFlightAuto} />auto-update</Flex>
+                </Text>
+                {flight && (
+                  <Badge color="gray" variant="soft">{flight.dep.iata} → {flight.arr.iata} · {flight.status}</Badge>
+                )}
+                {flightStatus && (
+                  <Text size="1" color={flightStatus.ok ? "green" : "amber"}>{flightStatus.msg}</Text>
+                )}
+                <Text size="1" color="gray" style={{ flexBasis: "100%" }}>
+                  Free tier is real-time only (500 req/mo, 1/min). Your key stays in your browser.
+                </Text>
+              </>
+            )}
           </Flex>
         </Card>
 
@@ -699,8 +850,8 @@ export default function App() {
         <Card size="2">
           <Heading size="3" mb="3">4 · Preview &amp; send</Heading>
           <Flex gap="4" wrap="wrap" align="start">
-            {isScores ? (
-              <canvas ref={scoresPreviewRef} width={640} height={128} className="preview-strip" />
+            {isStrip ? (
+              <canvas ref={stripRef} width={640} height={128} className="preview-strip" />
             ) : (
               <canvas ref={previewRef} width={128} height={128} className="preview" />
             )}
