@@ -61,19 +61,22 @@ import {
   type Game,
 } from "./lib/sports";
 import {
+  budgetOf,
   BudgetError,
   callsRemaining,
   dataRefreshMs,
   DISPLAY_TICK_MS,
   fetchFlight,
   isOver,
-  MONTHLY_BUDGET,
+  PROVIDERS,
+  providerMeta,
   renderFlightScreens,
   shouldConfirmLanding,
   type FlightInfo,
+  type ProviderId,
 } from "./lib/flight";
 
-const APP_VERSION = "0.9.3";
+const APP_VERSION = "0.10.0";
 
 type TemplateId = "solid" | "digital" | "ball" | "image" | "text" | "scores" | "flight";
 const TEMPLATE_LABEL: Record<TemplateId, string> = {
@@ -140,6 +143,14 @@ const FAQ: { q: string; a: string }[] = [
 
 // User-facing highlights (full technical log lives in CHANGELOG.md on GitHub).
 const CHANGES: { v: string; notes: string[] }[] = [
+  {
+    v: "0.9–0.10",
+    notes: [
+      "Flight tracker: enter a flight number to show airline, origin/destination airports (🛫/🛬), times and a live countdown across the 5 screens.",
+      "Choose your data provider — AviationStack, AeroDataBox or AirLabs — each with its own free key and setup guide.",
+      "Live altitude/speed shown while airborne; auto-update stays within each provider's free monthly cap.",
+    ],
+  },
   { v: "0.8.0", notes: ["New Radix-themed UI; display options grouped by category.", "On-page changelog and FAQ."] },
   {
     v: "0.5–0.7",
@@ -234,7 +245,18 @@ export default function App() {
   const [scoreStatus, setScoreStatus] = useState<Friendly | null>(null);
   const [scoreAuto, setScoreAuto] = useState(false);
   // flight tracker
-  const [asKey, setAsKey] = useState<string>(() => localStorage.getItem("pixelgate.asKey") || "");
+  const [flightProvider, setFlightProvider] = useState<ProviderId>(
+    () => (localStorage.getItem("pixelgate.flightProvider") as ProviderId) || "aviationstack",
+  );
+  const [flightKeys, setFlightKeys] = useState<Record<string, string>>(() => {
+    try {
+      const raw = localStorage.getItem("pixelgate.flightKeys");
+      if (raw) return JSON.parse(raw);
+    } catch { /* ignore */ }
+    const legacy = localStorage.getItem("pixelgate.asKey"); // migrate old single key
+    return legacy ? { aviationstack: legacy } : {};
+  });
+  const asKey = flightKeys[flightProvider] || "";
   const [flightCode, setFlightCode] = useState<string>(() => localStorage.getItem("pixelgate.flight") || "");
   const [flight, setFlight] = useState<FlightInfo | null>(null);
   const [flightScreens, setFlightScreens] = useState<HTMLCanvasElement[]>([]);
@@ -275,8 +297,18 @@ export default function App() {
     setTemplate(id);
   };
   const setKey = (v: string) => {
-    setAsKey(v);
-    localStorage.setItem("pixelgate.asKey", v);
+    setFlightKeys((m) => {
+      const next = { ...m, [flightProvider]: v };
+      localStorage.setItem("pixelgate.flightKeys", JSON.stringify(next));
+      return next;
+    });
+  };
+  const chooseProvider = (v: string) => {
+    setFlightProvider(v as ProviderId);
+    localStorage.setItem("pixelgate.flightProvider", v);
+    setFlight(null);
+    setFlightScreens([]);
+    setFlightStatus(null);
   };
   const setCode = (v: string) => {
     const u = v.toUpperCase();
@@ -324,13 +356,13 @@ export default function App() {
     flightRef.current = flight;
   }, [flight]);
 
-  const budgetNote = () => `${callsRemaining()}/${MONTHLY_BUDGET} API left`;
+  const budgetNote = () => `${callsRemaining(flightProvider)}/${budgetOf(flightProvider)} API left`;
 
   // Manual "Track": dedupe repeat clicks within 5 min (serve cached, no API call),
   // guard the monthly budget, then fetch.
   const refreshFlight = useCallback(async () => {
     setFlightStatus(null);
-    if (!asKey) return setFlightStatus({ ok: false, msg: "Enter your AviationStack API key first." });
+    if (!asKey) return setFlightStatus({ ok: false, msg: `Enter your ${providerMeta(flightProvider).name} API key first.` });
     if (!flightCode) return setFlightStatus({ ok: false, msg: "Enter a flight number (e.g. DL903)." });
     const lf = lastFetchRef.current;
     const cached = flightRef.current;
@@ -339,10 +371,10 @@ export default function App() {
       setFlightStatus({ ok: true, msg: `Using cached (${Math.round((Date.now() - lf.at) / 1000)}s ago) · ${budgetNote()}` });
       return;
     }
-    if (callsRemaining() <= 0)
-      return setFlightStatus({ ok: false, msg: `Monthly API limit reached (${MONTHLY_BUDGET}). Resets next month.` });
+    if (callsRemaining(flightProvider) <= 0)
+      return setFlightStatus({ ok: false, msg: `Monthly API limit reached (${budgetOf(flightProvider)}). Resets next month.` });
     try {
-      const f = await fetchFlight(asKey, flightCode);
+      const f = await fetchFlight(flightProvider, asKey, flightCode);
       if (!f) {
         setFlight(null);
         setFlightScreens([]);
@@ -356,7 +388,7 @@ export default function App() {
     } catch (e) {
       setFlightStatus({ ok: false, msg: (e as Error).message });
     }
-  }, [asKey, flightCode]);
+  }, [flightProvider, asKey, flightCode]);
 
   useEffect(() => {
     if (template === "flight") {
@@ -420,7 +452,7 @@ export default function App() {
     if (template === "flight") {
       let sc = flightScreens;
       if (sc.length !== SCREEN_COUNT) {
-        const f = flight ?? (await fetchFlight(asKey, flightCode));
+        const f = flight ?? (await fetchFlight(flightProvider, asKey, flightCode));
         if (!f) throw new Error("no flight data");
         sc = await renderFlightScreens(f);
       }
@@ -468,7 +500,7 @@ export default function App() {
     template, screens, solidColor, textColor, textValue, seconds,
     imageCanvas, clockBig, clockX, clockY, clockBg, textBg, cradleRandom,
     scoreScreens, game, league, favTeam,
-    flightScreens, flight, asKey, flightCode,
+    flightScreens, flight, flightProvider, asKey, flightCode,
   ]);
 
   useEffect(() => {
@@ -523,8 +555,8 @@ export default function App() {
           current == null ||
           Date.now() - lastFetch >= dataRefreshMs(current) ||
           shouldConfirmLanding(current, lastFetch);
-        if (due && callsRemaining() > 0) {
-          const f = await fetchFlight(asKey, flightCode);
+        if (due && callsRemaining(flightProvider) > 0) {
+          const f = await fetchFlight(flightProvider, asKey, flightCode);
           if (f) {
             current = f;
             lastFetch = Date.now();
@@ -545,7 +577,7 @@ export default function App() {
             }
             return;
           }
-          setFlightStatus({ ok: true, msg: `${current.status} · ${callsRemaining()}/${MONTHLY_BUDGET} API left` });
+          setFlightStatus({ ok: true, msg: `${current.status} · ${callsRemaining(flightProvider)}/${budgetOf(flightProvider)} API left` });
         }
       } catch (e) {
         if (e instanceof BudgetError) {
@@ -562,7 +594,7 @@ export default function App() {
       stopped = true;
       if (timer) clearTimeout(timer);
     };
-  }, [flightAuto, template, bridge.ok, cfg.deviceIp, cfg.localToken, cfg.bridgePort, asKey, flightCode]);
+  }, [flightAuto, template, bridge.ok, cfg.deviceIp, cfg.localToken, cfg.bridgePort, flightProvider, asKey, flightCode]);
 
   const doPush = useCallback(async (): Promise<Friendly> => {
     const cmds = await buildCommands();
@@ -852,16 +884,30 @@ export default function App() {
               </>
             )}
 
-            {isFlight && (
+            {isFlight && (() => {
+              const pm = providerMeta(flightProvider);
+              const remaining = callsRemaining(flightProvider);
+              return (
               <>
+                <label className="field">
+                  <Text size="1" color="gray">Data provider</Text>
+                  <Select.Root value={flightProvider} onValueChange={chooseProvider}>
+                    <Select.Trigger />
+                    <Select.Content>
+                      {Object.values(PROVIDERS).map((p) => (
+                        <Select.Item key={p.id} value={p.id}>{p.name}</Select.Item>
+                      ))}
+                    </Select.Content>
+                  </Select.Root>
+                </label>
                 <label className="field" style={{ minWidth: 220 }}>
                   <Text size="1" color="gray">
-                    AviationStack API key{" "}
-                    <Link href="https://aviationstack.com/signup/free" target="_blank" rel="noopener noreferrer" size="1">
+                    {pm.keyLabel}{" "}
+                    <Link href={pm.signupUrl} target="_blank" rel="noopener noreferrer" size="1">
                       (get a free key)
                     </Link>
                   </Text>
-                  <TextField.Root type="password" value={asKey} placeholder="your key (stays in your browser)"
+                  <TextField.Root type="password" value={asKey} placeholder={pm.keyHint}
                     onChange={(e) => setKey(e.target.value)} />
                 </label>
                 <label className="field">
@@ -870,24 +916,35 @@ export default function App() {
                     onChange={(e) => setCode(e.target.value)} />
                 </label>
                 <Button variant="soft" onClick={refreshFlight}>Track</Button>
-                <Text as="label" size="2" title="Keeps the on-device countdown live: re-renders every minute from cached data (no API call), and only re-checks AviationStack every ~30 min while active/near (slower far out) to respect the 100/month free cap. Reverts to your previous widget when the flight lands or is cancelled.">
+                <Text as="label" size="2" title={`Keeps the on-device countdown live: re-renders every minute from cached data (no API call), and only re-checks ${pm.name} every ~30 min while active/near (slower far out) to respect the ${pm.monthlyBudget}/month free cap. Reverts to your previous widget when the flight lands or is cancelled.`}>
                   <Flex gap="2" align="center"><Switch checked={flightAuto} onCheckedChange={setFlightAuto} />auto-update</Flex>
                 </Text>
                 {flight && (
                   <Badge color="gray" variant="soft">{flight.dep.iata} → {flight.arr.iata} · {flight.status}</Badge>
                 )}
-                <Badge color={callsRemaining() > 10 ? "green" : callsRemaining() > 0 ? "amber" : "red"} variant="soft">
-                  API {callsRemaining()}/{MONTHLY_BUDGET} left
+                <Badge color={remaining > 10 ? "green" : remaining > 0 ? "amber" : "red"} variant="soft">
+                  API {remaining}/{pm.monthlyBudget} left
                 </Badge>
                 {flightStatus && (
                   <Text size="1" color={flightStatus.ok ? "green" : "amber"}>{flightStatus.msg}</Text>
                 )}
+                <Box style={{ flexBasis: "100%" }}>
+                  <details className="faq-item">
+                    <summary>How to get your {pm.name} key</summary>
+                    <ol className="changes" style={{ marginTop: 6 }}>
+                      {pm.steps.map((s, i) => (
+                        <li key={i}><Text size="1" color="gray">{s}</Text></li>
+                      ))}
+                    </ol>
+                  </details>
+                </Box>
                 <Text size="1" color="gray" style={{ flexBasis: "100%" }}>
-                  Free tier is real-time only, 100 requests/month. The live countdown ticks locally (no calls);
-                  data re-checks ~every 30 min while active. Your key stays in your browser.
+                  {pm.note} The live countdown ticks locally (no calls); data re-checks ~every 30 min
+                  while active. Your key stays in your browser.
                 </Text>
               </>
-            )}
+              );
+            })()}
           </Flex>
         </Card>
 

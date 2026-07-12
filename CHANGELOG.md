@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.10.0 — 2026-07-12
+
+- **Pluggable flight data providers**. The flight tracker now has a **Provider**
+  dropdown — pick **AviationStack** (free 100/mo, simplest), **AeroDataBox**
+  (RapidAPI, free ~700/mo, richer data), or **AirLabs** (free ~1000/mo). Each has
+  its own API-key field, its own "How to get your key" step-by-step, its own free
+  budget counter, and its own signup link. Keys are remembered per provider and
+  never leave your browser.
+- **Live altitude/speed**. Once a flight is airborne, screen 2's middle line shows
+  the current flight level and ground speed (e.g. `FL350 480kt`) when the chosen
+  provider reports position (AeroDataBox, AirLabs, and AviationStack when it has a
+  live fix), replacing the departure time.
+
 ## 0.9.3 — 2026-07-12
 
 - Flight tracker airport screens now show the universal departure (🛫) and
