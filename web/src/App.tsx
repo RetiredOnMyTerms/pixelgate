@@ -57,7 +57,7 @@ import {
   renderWrapped,
 } from "./lib/render";
 import { fetchWeather, type WeatherData } from "./lib/weather";
-import { createCrawl, createRain, createStarship, type Effect } from "./lib/effects";
+import { createCrawl, createRain, createStarship, SHIPS, type Effect, type ShipId } from "./lib/effects";
 import { fetchQuote, quoteMarquee, ZEN_ATTRIBUTION, type Quote } from "./lib/quote";
 import {
   fetchTeamGame,
@@ -83,7 +83,7 @@ import {
   type ProviderId,
 } from "./lib/flight";
 
-const APP_VERSION = "0.15.2";
+const APP_VERSION = "0.16.0";
 
 type TemplateId =
   | "solid" | "digital" | "ball" | "image" | "text" | "scores" | "flight" | "weather" | "quote"
@@ -160,6 +160,13 @@ const FAQ: { q: string; a: string }[] = [
 
 // User-facing highlights (full technical log lives in CHANGELOG.md on GitHub).
 const CHANGES: { v: string; notes: string[] }[] = [
+  {
+    v: "0.16",
+    notes: [
+      "Starship flyby: pick your ship — Enterprise NCC-1701, Enterprise-D, Voyager, Millennium Falcon, Razor Crest, or the Death Star.",
+      "Starship no longer shows the device's receive indicator (back to a single pushed loop).",
+    ],
+  },
   {
     v: "0.15",
     notes: [
@@ -369,6 +376,9 @@ export default function App() {
   const [crawlLoops, setCrawlLoops] = useState(0); // 0 = forever
   const [starSpeed, setStarSpeed] = useState(220); // timesteps to cross all 5
   const [starLoop, setStarLoop] = useState(true);
+  const [starShip, setStarShip] = useState<ShipId>(
+    () => (localStorage.getItem("pixelgate.starShip") as ShipId) || "entD",
+  );
   const [effectPreview, setEffectPreview] = useState<HTMLCanvasElement[]>([]);
   const [effectRunning, setEffectRunning] = useState(false);
   const effectStop = useRef<null | (() => void)>(null);
@@ -573,8 +583,8 @@ export default function App() {
     if (template === "rain") return createRain({ spans: rainSpans, speed: rainSpeed });
     if (template === "crawl")
       return createCrawl({ spans: crawlSpans, title: crawlTitle, text: crawlText, speed: crawlSpeed, loops: crawlLoops });
-    return createStarship({ speed: starSpeed, loop: starLoop });
-  }, [template, rainSpans, rainSpeed, crawlSpans, crawlTitle, crawlText, crawlSpeed, crawlLoops, starSpeed, starLoop]);
+    return createStarship({ speed: starSpeed, loop: starLoop, ship: starShip });
+  }, [template, rainSpans, rainSpeed, crawlSpans, crawlTitle, crawlText, crawlSpeed, crawlLoops, starSpeed, starLoop, starShip]);
 
   // A static preview frame (a representative moment mid-animation).
   useEffect(() => {
@@ -1448,6 +1458,20 @@ export default function App() {
 
             {template === "starship" && (
               <>
+                <label className="field" style={{ minWidth: 220 }}>
+                  <Text size="1" color="gray">Ship</Text>
+                  <Select.Root
+                    value={starShip}
+                    onValueChange={(v) => { setStarShip(v as ShipId); localStorage.setItem("pixelgate.starShip", v); }}
+                  >
+                    <Select.Trigger />
+                    <Select.Content>
+                      {SHIPS.map((s) => (
+                        <Select.Item key={s.id} value={s.id}>{s.name}</Select.Item>
+                      ))}
+                    </Select.Content>
+                  </Select.Root>
+                </label>
                 <label className="field" style={{ minWidth: 180 }}>
                   <Text size="1" color="gray">Flight time · {starSpeed} steps (higher = slower)</Text>
                   <Slider value={[starSpeed]} min={80} max={400} step={10} onValueChange={([v]) => setStarSpeed(v)} />

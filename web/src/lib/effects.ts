@@ -242,18 +242,183 @@ export function createCrawl(opts: {
 // ==========================================================================
 // Effect 3: Starship flyby — precomputed traverse, seamless on-device loop
 // ==========================================================================
-const SHIP_W = 96;
-
 type Star = { x: number; y: number; phase: number; big: boolean };
 
-export function createStarship(opts: { speed?: number; loop?: boolean }): Effect {
+const HULL = "#C7D0E0";
+const DARK = "#8A94AA";
+
+function fillEllipse(g: CanvasRenderingContext2D, cx: number, cy: number, rx: number, ry: number) {
+  g.beginPath();
+  g.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
+  g.fill();
+}
+
+// A fading engine/warp streak trailing to the LEFT (behind a ship moving right).
+function trail(g: CanvasRenderingContext2D, x: number, ys: number[], rgb: string, len = 20, h = 2) {
+  for (let i = 0; i < len; i++) {
+    const a = (1 - i / len) * 0.5;
+    g.fillStyle = `rgba(${rgb},${a.toFixed(3)})`;
+    for (const y of ys) g.fillRect(x - i * 3, y - h / 2, 3, h);
+  }
+}
+
+// Each ship is a simplified pixel-art silhouette (a fan-art homage, not a
+// reproduction of official artwork), drawn facing RIGHT with its rear at `x`.
+
+function drawEntD(g: CanvasRenderingContext2D, x: number, cy: number) {
+  const glow = "#4FB0FF";
+  const nyTop = cy - 25, nyBot = cy - 13;
+  trail(g, x, [nyTop, nyBot], "79,176,255");
+  g.fillStyle = HULL; fillEllipse(g, x + 40, cy + 11, 22, 8); // engineering hull
+  g.strokeStyle = DARK; g.lineWidth = 3;
+  g.beginPath();
+  g.moveTo(x + 34, nyTop); g.lineTo(x + 44, cy + 6);
+  g.moveTo(x + 34, nyBot); g.lineTo(x + 46, cy + 6);
+  g.stroke();
+  for (const ny of [nyTop, nyBot]) {
+    g.fillStyle = DARK; fillEllipse(g, x + 26, ny, 24, 3.5);
+    g.fillStyle = glow; fillEllipse(g, x + 48, ny, 3.5, 3.5);
+  }
+  g.fillStyle = DARK;
+  g.beginPath(); g.moveTo(x + 66, cy - 2); g.lineTo(x + 56, cy + 6); g.lineTo(x + 68, cy + 6); g.closePath(); g.fill();
+  g.fillStyle = HULL; fillEllipse(g, x + 80, cy - 4, 28, 10); // saucer
+  g.fillStyle = DARK; fillEllipse(g, x + 84, cy - 9, 8, 4);   // bridge dome
+}
+
+function drawEnt1701(g: CanvasRenderingContext2D, x: number, cy: number) {
+  const nyTop = cy - 24, nyBot = cy - 14;
+  trail(g, x, [nyTop, nyBot], "79,176,255");
+  // secondary (engineering) hull — cigar with a pointed nose
+  g.fillStyle = HULL; fillEllipse(g, x + 44, cy + 9, 24, 6);
+  g.beginPath(); g.moveTo(x + 66, cy + 9); g.lineTo(x + 80, cy + 6); g.lineTo(x + 80, cy + 12); g.closePath(); g.fill();
+  // pylons up to the nacelles
+  g.strokeStyle = DARK; g.lineWidth = 3;
+  g.beginPath();
+  g.moveTo(x + 40, cy + 4); g.lineTo(x + 34, nyTop);
+  g.moveTo(x + 44, cy + 4); g.lineTo(x + 38, nyBot);
+  g.stroke();
+  // thin cylindrical nacelles with ORANGE Bussard caps at the front
+  for (const ny of [nyTop, nyBot]) {
+    g.fillStyle = DARK; fillEllipse(g, x + 26, ny, 24, 3);
+    g.fillStyle = "#FF7A3C"; fillEllipse(g, x + 48, ny, 3.5, 3.5);
+    g.fillStyle = "#7FD8FF"; fillEllipse(g, x + 3, ny, 2.5, 2.5);
+  }
+  // neck + clean disc saucer
+  g.fillStyle = DARK;
+  g.beginPath(); g.moveTo(x + 68, cy); g.lineTo(x + 58, cy + 6); g.lineTo(x + 70, cy + 6); g.closePath(); g.fill();
+  g.fillStyle = HULL; fillEllipse(g, x + 82, cy - 6, 24, 7);
+  g.fillStyle = DARK; fillEllipse(g, x + 84, cy - 10, 7, 3);
+}
+
+function drawVoyager(g: CanvasRenderingContext2D, x: number, cy: number) {
+  trail(g, x, [cy + 2], "79,176,255", 16);
+  // sleek arrowhead body pointing right
+  g.fillStyle = HULL;
+  g.beginPath();
+  g.moveTo(x + 82, cy);
+  g.lineTo(x + 40, cy - 12);
+  g.lineTo(x + 14, cy - 5);
+  g.lineTo(x + 14, cy + 8);
+  g.lineTo(x + 40, cy + 12);
+  g.closePath(); g.fill();
+  g.fillStyle = DARK; fillEllipse(g, x + 42, cy + 8, 16, 5); // lower body
+  // two nacelles angled UP at the back (Intrepid's variable geometry)
+  for (const off of [-6, -15]) {
+    g.save();
+    g.translate(x + 30, cy + off);
+    g.rotate((-20 * Math.PI) / 180);
+    g.fillStyle = DARK; fillEllipse(g, 0, 0, 16, 3.5);
+    g.fillStyle = "#4FB0FF"; fillEllipse(g, 14, 0, 3, 3);
+    g.restore();
+  }
+}
+
+function drawDeathStar(g: CanvasRenderingContext2D, x: number, cy: number) {
+  const r = 46, cx = x + 52;
+  g.fillStyle = "#9AA0AA"; fillEllipse(g, cx, cy, r, r);
+  // lower-hemisphere shading
+  g.fillStyle = "#7E848E";
+  g.beginPath(); g.arc(cx, cy, r, 0.12 * Math.PI, 0.88 * Math.PI, false); g.closePath(); g.fill();
+  // equatorial trench
+  g.strokeStyle = "#5A606B"; g.lineWidth = 3;
+  g.beginPath(); g.moveTo(cx - r, cy); g.lineTo(cx + r, cy); g.stroke();
+  // superlaser dish + green focus
+  g.fillStyle = "#6A707A"; fillEllipse(g, cx + 15, cy - 18, 13, 13);
+  g.strokeStyle = "#4A505A"; g.lineWidth = 2;
+  g.beginPath(); g.arc(cx + 15, cy - 18, 13, 0, Math.PI * 2); g.stroke();
+  g.fillStyle = "#39E27A"; fillEllipse(g, cx + 15, cy - 18, 3, 3);
+}
+
+function drawFalcon(g: CanvasRenderingContext2D, x: number, cy: number) {
+  const beige = "#B9BEC7", dk = "#8A9099";
+  // rear engine glow
+  for (let i = 0; i < 14; i++) {
+    const a = (1 - i / 14) * 0.6;
+    g.fillStyle = `rgba(150,205,255,${a.toFixed(3)})`;
+    g.fillRect(x + 4 - i * 3, cy - 6, 3, 12);
+  }
+  g.fillStyle = beige; fillEllipse(g, x + 42, cy, 34, 15); // main disc
+  g.fillStyle = "#CFE6FF"; g.fillRect(x + 8, cy - 8, 4, 16); // engine bar
+  g.fillStyle = dk; fillEllipse(g, x + 34, cy - 2, 7, 7);    // center dish
+  // front mandibles (two prongs)
+  g.fillStyle = beige;
+  g.fillRect(x + 72, cy - 11, 20, 7);
+  g.fillRect(x + 72, cy + 4, 20, 7);
+  // offset cockpit
+  g.fillStyle = beige; g.fillRect(x + 64, cy + 11, 12, 5);
+  g.fillStyle = dk; fillEllipse(g, x + 80, cy + 15, 6, 5);
+}
+
+function drawRazorCrest(g: CanvasRenderingContext2D, x: number, cy: number) {
+  const m = "#AEB4BD", dk = "#7E848E";
+  for (let i = 0; i < 12; i++) {
+    const a = (1 - i / 12) * 0.6;
+    g.fillStyle = `rgba(130,195,255,${a.toFixed(3)})`;
+    g.fillRect(x - i * 3, cy - 5, 3, 10);
+  }
+  // two tall vertical tail fins at the rear
+  g.fillStyle = dk;
+  g.fillRect(x + 8, cy - 26, 7, 26);
+  g.fillRect(x + 8, cy, 7, 26);
+  // blocky fuselage
+  g.fillStyle = m;
+  g.beginPath();
+  g.moveTo(x + 12, cy - 9); g.lineTo(x + 66, cy - 9); g.lineTo(x + 84, cy - 3);
+  g.lineTo(x + 84, cy + 5); g.lineTo(x + 66, cy + 11); g.lineTo(x + 12, cy + 11);
+  g.closePath(); g.fill();
+  g.fillStyle = dk; g.fillRect(x + 12, cy - 7, 8, 16); // engine block
+  g.fillStyle = "#3A4652"; // cockpit windshield
+  g.beginPath(); g.moveTo(x + 70, cy - 6); g.lineTo(x + 82, cy - 1); g.lineTo(x + 70, cy + 3); g.closePath(); g.fill();
+}
+
+export type ShipId = "entD" | "ent1701" | "voyager" | "falcon" | "razorcrest" | "deathstar";
+export const SHIPS: { id: ShipId; name: string }[] = [
+  { id: "entD", name: "U.S.S. Enterprise NCC-1701-D (Galaxy)" },
+  { id: "ent1701", name: "U.S.S. Enterprise NCC-1701 (TOS)" },
+  { id: "voyager", name: "U.S.S. Voyager NCC-74656" },
+  { id: "falcon", name: "Millennium Falcon" },
+  { id: "razorcrest", name: "Razor Crest" },
+  { id: "deathstar", name: "Death Star" },
+];
+const SHIP_SPEC: Record<ShipId, { w: number; draw: (g: CanvasRenderingContext2D, x: number, cy: number) => void }> = {
+  entD: { w: 98, draw: drawEntD },
+  ent1701: { w: 100, draw: drawEnt1701 },
+  voyager: { w: 90, draw: drawVoyager },
+  falcon: { w: 96, draw: drawFalcon },
+  razorcrest: { w: 96, draw: drawRazorCrest },
+  deathstar: { w: 108, draw: drawDeathStar },
+};
+
+export function createStarship(opts: { speed?: number; loop?: boolean; ship?: ShipId }): Effect {
+  const spec = SHIP_SPEC[opts.ship ?? "entD"] ?? SHIP_SPEC.entD;
+  const SHIP_W = spec.w;
   const width = W * 5; // always spans all 5
   const F = 36; // frames in one full traverse (under the device's ~40/animation cap)
   const dx = (width + SHIP_W * 2) / F;
   // speed knob (80 slow .. 400 fast-ish, "steps") -> ms per frame.
   const picSpeed = Math.round(clamp((opts.speed ?? 220) / 3, 40, 150));
 
-  // Static starfield (no drift) + twinkle with period F, so the loop is seamless.
+  // Static starfield + twinkle with period F, so the pushed loop is seamless.
   const stars: Star[] = Array.from({ length: 70 }, () => ({
     x: Math.round(rand(0, width)),
     y: Math.round(rand(0, W)),
@@ -261,110 +426,40 @@ export function createStarship(opts: { speed?: number; loop?: boolean }): Effect
     big: Math.random() < 0.15,
   }));
 
-  function drawShip(g: CanvasRenderingContext2D, x: number, cy: number) {
-    const hull = "#C7D0E0";
-    const dark = "#8A94AA";
-    const glow = "#4FB0FF";
-    // Moving RIGHT: saucer leads (front/right); the two nacelles sit clearly to
-    // the LEFT of the saucer so both stay visible (the previous version drew the
-    // saucer over the lower nacelle, hiding it and looking like a blob).
-    const nyTop = cy - 25;
-    const nyBot = cy - 13;
-    // engine trail behind the nacelles (to the left)
-    for (let i = 0; i < 20; i++) {
-      const tx = x - i * 3;
-      const a = (1 - i / 20) * 0.5;
-      g.fillStyle = `rgba(79,176,255,${a.toFixed(3)})`;
-      g.fillRect(tx, nyTop - 1, 3, 2);
-      g.fillRect(tx, nyBot - 1, 3, 2);
-    }
-    // engineering / secondary hull — behind and below
-    g.fillStyle = hull;
-    g.beginPath();
-    g.ellipse(x + 40, cy + 11, 22, 8, 0, 0, Math.PI * 2);
-    g.fill();
-    // pylons from each nacelle down to the engineering hull
-    g.strokeStyle = dark;
-    g.lineWidth = 3;
-    g.beginPath();
-    g.moveTo(x + 34, nyTop);
-    g.lineTo(x + 44, cy + 6);
-    g.moveTo(x + 34, nyBot);
-    g.lineTo(x + 46, cy + 6);
-    g.stroke();
-    // two warp nacelles (elongated, trailing left) with bright front (right) caps
-    for (const ny of [nyTop, nyBot]) {
-      g.fillStyle = dark;
-      g.beginPath();
-      g.ellipse(x + 26, ny, 24, 3.5, 0, 0, Math.PI * 2);
-      g.fill();
-      g.fillStyle = glow;
-      g.beginPath();
-      g.ellipse(x + 48, ny, 3.5, 3.5, 0, 0, Math.PI * 2);
-      g.fill();
-    }
-    // neck connecting the saucer to the engineering hull
-    g.fillStyle = dark;
-    g.beginPath();
-    g.moveTo(x + 66, cy - 2);
-    g.lineTo(x + 56, cy + 6);
-    g.lineTo(x + 68, cy + 6);
-    g.closePath();
-    g.fill();
-    // saucer (leading, right) + bridge dome — drawn last, clear of the nacelles
-    g.fillStyle = hull;
-    g.beginPath();
-    g.ellipse(x + 80, cy - 4, 28, 10, 0, 0, Math.PI * 2);
-    g.fill();
-    g.fillStyle = dark;
-    g.beginPath();
-    g.ellipse(x + 84, cy - 9, 8, 4, 0, 0, Math.PI * 2);
-    g.fill();
-  }
-
-  function frame(shipX: number, t: number): HTMLCanvasElement {
+  function frameAt(f: number): HTMLCanvasElement {
     const c = canvas(width, W);
     const g = c.getContext("2d")!;
     g.fillStyle = "#000000";
     g.fillRect(0, 0, width, W);
     for (const s of stars) {
-      const tw = 0.5 + 0.5 * Math.sin(t * 0.2 + s.phase);
+      const tw = 0.5 + 0.5 * Math.sin((2 * Math.PI * f) / F + s.phase);
       const v = Math.round((s.big ? 180 : 120) + 75 * tw);
       g.fillStyle = `rgb(${v},${v},${v})`;
-      const sz = s.big ? 2 : 1;
-      g.fillRect(s.x, s.y, sz, sz);
+      g.fillRect(s.x, s.y, s.big ? 2 : 1, s.big ? 2 : 1);
     }
-    drawShip(g, shipX, 64);
+    spec.draw(g, -SHIP_W + f * dx, 64);
     return c;
   }
 
-  // STREAM one global frame at a time to all 5 screens (in one CommandList), so
-  // every screen shows the exact same frame — the ship stays synced across the
-  // whole row and flows 0->4. (Looping 5 independent per-screen animations lets
-  // them drift out of phase, which breaks the flow at the screen boundaries.)
-  let shipX = -SHIP_W;
-  let t = 0;
-  const runner: Effect = {
+  // Push ONE loop and let the firmware loop it (no continuous streaming, so no
+  // "receiving" indicator). The 5 per-screen animations start together in one
+  // CommandList at the same PicSpeed, so they stay in step.
+  let frame = 0;
+  return {
     spans: "all",
-    mode: "stream",
-    loopLen: 1,
+    mode: "loop",
+    loopLen: F,
     picSpeed,
     loopForever: opts.loop ?? true,
     runCount: 1,
     done: false,
     nextBatch(n: number) {
       const out: HTMLCanvasElement[][] = [];
-      for (let i = 0; i < n && !runner.done; i++) {
-        t++;
-        shipX += dx;
-        if (shipX > width + SHIP_W) {
-          if (opts.loop ?? true) shipX = -SHIP_W;
-          else { runner.done = true; break; }
-        }
-        out.push(slice5(frame(shipX, t)));
+      for (let i = 0; i < n; i++) {
+        out.push(slice5(frameAt(frame % F)));
+        frame++;
       }
       return out;
     },
   };
-  return runner;
 }

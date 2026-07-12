@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.16.0 — 2026-07-12
+
+- **Starship flyby ship picker** — choose the silhouette: U.S.S. Enterprise
+  NCC-1701 (TOS), Enterprise NCC-1701-D (Galaxy), U.S.S. Voyager NCC-74656,
+  Millennium Falcon, Razor Crest, or the Death Star. Each is a simplified
+  pixel-art fan-art homage, not a reproduction of official artwork.
+- Starship reverted from streaming back to a **single pushed loop**, so it no
+  longer shows the device's "receiving" indicator while it plays. (Trade-off: the
+  five per-screen loops can drift slightly on some firmware; the previous
+  streaming version stayed perfectly synced but flashed the receive indicator.)
+- SEO: added "Divoom", "Times Gate", and "API" search terms (title, description,
+  keywords, structured data) so the app is findable by "Divoom Times Gate API".
+
 ## 0.15.2 — 2026-07-12
 
 - Fix: the Starship flyby didn't flow smoothly from screen 0 to 4. It was pushed
