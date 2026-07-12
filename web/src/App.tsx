@@ -25,7 +25,6 @@ import {
 import {
   imageFileToCanvas,
   renderBall,
-  renderClock,
   renderDigital,
   renderSolid,
   renderText,
@@ -33,9 +32,8 @@ import {
 
 const APP_VERSION = "0.4.1";
 
-type TemplateId = "solid" | "clock" | "digital" | "ball" | "image" | "text";
+type TemplateId = "solid" | "digital" | "ball" | "image" | "text";
 const TEMPLATES: { id: TemplateId; label: string }[] = [
-  { id: "clock", label: "Analog clock" },
   { id: "digital", label: "Digital clock" },
   { id: "text", label: "Text / marquee" },
   { id: "ball", label: "Bouncing ball" },
@@ -59,12 +57,10 @@ export default function App() {
   const [cfg, setCfg] = useState<Config>(loadConfig());
   const [bridge, setBridge] = useState<BridgeStatus>({ ok: false, error: "not checked" });
   const [screens, setScreens] = useState<number[]>([0]);
-  const [template, setTemplate] = useState<TemplateId>("clock");
+  const [template, setTemplate] = useState<TemplateId>("digital");
   const [busy, setBusy] = useState(false);
   const [reply, setReply] = useState<Friendly | null>(null);
   const [script, setScript] = useState<string | null>(null);
-  const [live, setLive] = useState(false);
-  const [liveMsg, setLiveMsg] = useState<string | null>(null);
   const [showHelp, setShowHelp] = useState(false);
   const [verifyMsg, setVerifyMsg] = useState<Friendly | null>(null);
   const [verifying, setVerifying] = useState(false);
@@ -73,7 +69,6 @@ export default function App() {
   const [solidColor, setSolidColor] = useState("#00C8FF");
   const [textValue, setTextValue] = useState("HELLO TIMES GATE");
   const [textColor, setTextColor] = useState("#00E5FF");
-  const [bgColor, setBgColor] = useState("#05070F");
   const [textBg, setTextBg] = useState<BgPreset>("dark");
   const [seconds, setSeconds] = useState(true);
   const [imageCanvas, setImageCanvas] = useState<HTMLCanvasElement | null>(null);
@@ -103,8 +98,6 @@ export default function App() {
     switch (template) {
       case "solid":
         return renderSolid(solidColor);
-      case "clock":
-        return renderClock(new Date(), { seconds: live });
       case "digital":
         return renderDigital(new Date(), { bg: BG_PRESET_HEX[clockBg], color: textColor, seconds });
       case "ball":
@@ -112,14 +105,9 @@ export default function App() {
       case "image":
         return imageCanvas;
       case "text":
-        return renderText(textValue, textColor, bgColor);
+        return renderText(textValue, textColor, BG_PRESET_HEX[textBg]);
     }
-  }, [template, solidColor, bgColor, textColor, textValue, seconds, imageCanvas, clockBg, live]);
-
-  // Only the analog clock uses re-push; digital self-updates on-device.
-  useEffect(() => {
-    if (template !== "clock") setLive(false);
-  }, [template]);
+  }, [template, solidColor, textColor, textValue, seconds, imageCanvas, clockBg, textBg]);
 
   // Repaint preview whenever inputs change.
   useEffect(() => {
@@ -162,9 +150,6 @@ export default function App() {
       case "solid":
         canvases = [renderSolid(solidColor)];
         break;
-      case "clock":
-        canvases = [renderClock(new Date(), { seconds: live })];
-        break;
       case "ball":
         canvases = renderBall(30);
         speed = 45;
@@ -180,8 +165,8 @@ export default function App() {
     cmds.push(...buildAnimation(screens, b64, speed));
     return cmds;
   }, [
-    template, screens, solidColor, bgColor, textColor, textValue, seconds,
-    imageCanvas, clockBig, clockX, clockY, clockBg, textBg, live,
+    template, screens, solidColor, textColor, textValue, seconds,
+    imageCanvas, clockBig, clockX, clockY, clockBg, textBg,
   ]);
 
   // Core push, shared by the manual Send button and the live re-push tick.
@@ -236,34 +221,6 @@ export default function App() {
       setVerifying(false);
     }
   }, [cfg, bridge]);
-
-  // Live tick for clocks: re-push each second WITHOUT blocking the UI.
-  // Runs quietly (no busy state, no reply spam); a self-scheduling loop that
-  // waits for each push to finish so ticks never pile up.
-  useEffect(() => {
-    const isClock = template === "clock";
-    if (!(live && isClock && bridge.ok && cfg.deviceIp && cfg.localToken)) {
-      setLiveMsg(null);
-      return;
-    }
-    let stopped = false;
-    let timer: number | undefined;
-    const tick = async () => {
-      if (stopped) return;
-      try {
-        await doPush();
-        if (!stopped) setLiveMsg(`live • last update ${new Date().toLocaleTimeString()}`);
-      } catch {
-        if (!stopped) setLiveMsg("live • push failed (bridge running?)");
-      }
-      if (!stopped) timer = window.setTimeout(tick, 1000);
-    };
-    tick();
-    return () => {
-      stopped = true;
-      if (timer) clearTimeout(timer);
-    };
-  }, [live, template, bridge.ok, cfg.deviceIp, cfg.localToken, doPush]);
 
   const toggleScreen = (i: number) =>
     setScreens((prev) =>
@@ -485,16 +442,6 @@ export default function App() {
               />
             </label>
           )}
-          {template === "clock" && (
-            <>
-              <label className="check" title="Analog clock is a snapshot (the device can't draw a live analog face). Enable to re-push every second so the hands move — runs quietly in the background. Off = a clean static face with no second hand.">
-                <input type="checkbox" checked={live} onChange={(e) => setLive(e.target.checked)} />
-                live tick (re-push so the hands move)
-              </label>
-              <span className="hint">Analog is a snapshot. For a self-updating clock use Digital.</span>
-            </>
-          )}
-          {liveMsg && <span className="livemsg">{liveMsg}</span>}
         </div>
       </section>
 
