@@ -53,9 +53,11 @@ import {
   renderSolid,
   renderText,
   renderWeather,
+  renderWrapped,
 } from "./lib/render";
 import { fetchWeather, type WeatherData } from "./lib/weather";
 import { createCrawl, createRain, createStarship, type Effect } from "./lib/effects";
+import { fetchQuote, quoteMarquee, ZEN_ATTRIBUTION, type Quote } from "./lib/quote";
 import {
   fetchTeamGame,
   homeFirst,
@@ -80,10 +82,10 @@ import {
   type ProviderId,
 } from "./lib/flight";
 
-const APP_VERSION = "0.12.0";
+const APP_VERSION = "0.13.0";
 
 type TemplateId =
-  | "solid" | "digital" | "ball" | "image" | "text" | "scores" | "flight" | "weather"
+  | "solid" | "digital" | "ball" | "image" | "text" | "scores" | "flight" | "weather" | "quote"
   | "rain" | "crawl" | "starship";
 const TEMPLATE_LABEL: Record<TemplateId, string> = {
   digital: "Digital clock",
@@ -94,6 +96,7 @@ const TEMPLATE_LABEL: Record<TemplateId, string> = {
   scores: "Sports scoreboard",
   flight: "Flight tracker",
   weather: "Weather",
+  quote: "Quote of the day",
   rain: "Digital rain",
   crawl: "Opening crawl",
   starship: "Starship flyby",
@@ -103,7 +106,7 @@ const GROUPS: { label: string; items: TemplateId[] }[] = [
   { label: "Text", items: ["text"] },
   { label: "Graphics", items: ["ball", "image", "solid"] },
   { label: "Live", items: ["scores", "flight"] },
-  { label: "Data", items: ["weather"] },
+  { label: "Data", items: ["weather", "quote"] },
   { label: "Effects", items: ["rain", "crawl", "starship"] },
 ];
 const EFFECT_IDS: TemplateId[] = ["rain", "crawl", "starship"];
@@ -156,6 +159,12 @@ const FAQ: { q: string; a: string }[] = [
 
 // User-facing highlights (full technical log lives in CHANGELOG.md on GitHub).
 const CHANGES: { v: string; notes: string[] }[] = [
+  {
+    v: "0.13",
+    notes: [
+      "Quote of the Day widget — today's quote from ZenQuotes as a scrolling marquee (quote → author → attribution) on any assigned screen(s).",
+    ],
+  },
   {
     v: "0.12",
     notes: [
@@ -294,6 +303,10 @@ export default function App() {
   const [weather, setWeather] = useState<WeatherData | null>(null);
   const [weatherCanvas, setWeatherCanvas] = useState<HTMLCanvasElement | null>(null);
   const [weatherStatus, setWeatherStatus] = useState<Friendly | null>(null);
+
+  // quote of the day
+  const [quote, setQuote] = useState<Quote | null>(null);
+  const [quoteStatus, setQuoteStatus] = useState<Friendly | null>(null);
 
   // visual effects
   const [rainSpans, setRainSpans] = useState<"single" | "all">("all");
@@ -480,6 +493,27 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [template]);
 
+  // Quote of the day — fetched once (changes daily); no fast polling.
+  const refreshQuote = useCallback(async () => {
+    setQuoteStatus(null);
+    try {
+      const q = await fetchQuote();
+      if (!q) {
+        setQuote(null);
+        return setQuoteStatus({ ok: false, msg: "Couldn't load today's quote — try again shortly." });
+      }
+      setQuote(q);
+      setQuoteStatus({ ok: true, msg: `“${q.text.slice(0, 40)}${q.text.length > 40 ? "…" : ""}” — ${q.author}` });
+    } catch (e) {
+      setQuoteStatus({ ok: false, msg: (e as Error).message });
+    }
+  }, []);
+
+  useEffect(() => {
+    if (template === "quote" && !quote) refreshQuote();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [template]);
+
   // ---- visual effects ----------------------------------------------------
   // Build a fresh effect generator from the current template + options.
   const makeRunner = useCallback((): Effect => {
@@ -649,6 +683,10 @@ export default function App() {
         return renderText(textValue, textColor, BG_PRESET_HEX[textBg]);
       case "weather":
         return weatherCanvas;
+      case "quote":
+        return quote
+          ? renderWrapped(`“${quote.text}”`, { footer: `— ${quote.author}`, maxFont: 17, footerColor: "#FFD227" })
+          : renderWrapped("Loading today's quote…", { color: "#9AA4BD" });
       case "rain":
         return rainSpans === "all" ? null : effectPreview[0] ?? null;
       case "crawl":
@@ -659,7 +697,7 @@ export default function App() {
       case "flight":
         return null;
     }
-  }, [template, solidColor, textColor, textValue, seconds, imageCanvas, clockBg, textBg, weatherCanvas, effectPreview, rainSpans, crawlSpans]);
+  }, [template, solidColor, textColor, textValue, seconds, imageCanvas, clockBg, textBg, weatherCanvas, quote, effectPreview, rainSpans, crawlSpans]);
 
   useEffect(() => {
     let cancelled = false;
@@ -684,6 +722,18 @@ export default function App() {
     }
     if (template === "text") {
       return buildScrollingText(screens, { text: textValue, color: textColor, bg: textBg });
+    }
+    if (template === "quote") {
+      const q = quote ?? (await fetchQuote());
+      if (!q) throw new Error("no quote data — press Refresh");
+      // On-device scrolling marquee of quote → author → attribution (always
+      // included). Same text on each assigned screen. Scrolls natively, no re-push.
+      return buildScrollingText(screens, {
+        text: quoteMarquee(q),
+        color: textColor,
+        bg: textBg,
+        maxLen: 240,
+      });
     }
     if (template === "scores") {
       let sc = scoreScreens;
@@ -753,7 +803,7 @@ export default function App() {
     imageCanvas, clockBig, clockX, clockY, clockBg, textBg, cradleRandom,
     scoreScreens, game, league, favTeam,
     flightScreens, flight, flightProvider, asKey, flightCode,
-    weatherCanvas, weather,
+    weatherCanvas, weather, quote,
   ]);
 
   useEffect(() => {
@@ -916,6 +966,7 @@ export default function App() {
   const isScores = template === "scores";
   const isFlight = template === "flight";
   const isWeather = template === "weather";
+  const isQuote = template === "quote";
   const isEffect = EFFECT_IDS.includes(template);
   const effAll =
     template === "starship" ||
@@ -1225,6 +1276,25 @@ export default function App() {
                 <Text size="1" color="gray" style={{ flexBasis: "100%" }}>
                   Live conditions from Open-Meteo (no API key). Pick screens above, then Send.
                   Shows current temperature in both °F and °C plus today's high / low.
+                </Text>
+              </>
+            )}
+
+            {isQuote && (
+              <>
+                <Button variant="soft" onClick={refreshQuote}>Refresh quote</Button>
+                {quote && (
+                  <Badge color="gray" variant="soft" style={{ maxWidth: 420, whiteSpace: "normal", height: "auto" }}>
+                    “{quote.text}” — {quote.author}
+                  </Badge>
+                )}
+                {quoteStatus && (
+                  <Text size="1" color={quoteStatus.ok ? "green" : "amber"}>{quoteStatus.msg}</Text>
+                )}
+                <Text size="1" color="gray" style={{ flexBasis: "100%" }}>
+                  Today's quote from ZenQuotes, shown as a scrolling marquee (quote → author →
+                  attribution) on each assigned screen. Pick screens above, then Send. The
+                  attribution “{ZEN_ATTRIBUTION}” is always included, as required by the free API.
                 </Text>
               </>
             )}

@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.13.0 — 2026-07-12
+
+- **Quote of the Day widget** (Data group). Shows today's quote from **ZenQuotes**
+  as an on-device scrolling marquee — quote → author → the required attribution
+  ("Inspirational quotes provided by ZenQuotes API") — on each assigned screen.
+  ZenQuotes sends no CORS header, so it's fetched through a new keyless proxy
+  Function (`/api/quote`) that also caches hourly to respect the free rate limit.
+  Quotes change once a day, so there's no fast polling. Attribution is always
+  included, as required by the free tier.
+
 ## 0.12.0 — 2026-07-12
 
 - **Visual Effects mode** — a new "Effects" group with three animated effects,

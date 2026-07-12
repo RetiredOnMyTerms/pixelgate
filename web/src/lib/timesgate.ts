@@ -193,14 +193,14 @@ function b64url(s: string): string {
  */
 export function buildScrollingText(
   screens: number | number[],
-  opts: { text: string; color: string; bg: BgPreset; speed?: number; y?: number },
+  opts: { text: string; color: string; bg: BgPreset; speed?: number; y?: number; maxLen?: number },
 ): Command[] {
   const list = typeof screens === "number" ? [screens] : screens;
   const bgUrl = `${BG_BASE}${opts.bg}.gif`;
   // The device's net-text fetcher errors on encoded spaces (%20) and special
   // chars in the query string. base64url-encode the message so the URL is pure
   // [A-Za-z0-9-_]; the echo Function decodes it and repeats it so it scrolls.
-  const raw = (opts.text.trim() || " ").slice(0, 80);
+  const raw = (opts.text.trim() || " ").slice(0, opts.maxLen ?? 80);
   const url = `${ECHO_BASE}?b=${b64url(raw)}`;
   return list.map((s) =>
     sendHttpItemList({

@@ -481,6 +481,62 @@ export async function imageFileToCanvas(file: File): Promise<HTMLCanvasElement> 
   }
 }
 
+// ---- wrapped text (quotes, spread tiles) ---------------------------------
+function wrapWords(g: CanvasRenderingContext2D, text: string, maxW: number): string[] {
+  const words = text.split(/\s+/).filter(Boolean);
+  const out: string[] = [];
+  let line = "";
+  for (const w of words) {
+    const t = line ? `${line} ${w}` : w;
+    if (g.measureText(t).width > maxW && line) {
+      out.push(line);
+      line = w;
+    } else line = t;
+  }
+  if (line) out.push(line);
+  return out;
+}
+
+/** Word-wrapped, auto-fitted centred text with an optional footer line (e.g. a
+ * quote body with the author underneath). Shrinks the font until it fits. */
+export function renderWrapped(
+  text: string,
+  opts: { bg?: string; color?: string; maxFont?: number; minFont?: number; footer?: string; footerColor?: string } = {},
+): HTMLCanvasElement {
+  const c = newCanvas();
+  const g = c.getContext("2d")!;
+  g.fillStyle = opts.bg ?? "#000000";
+  g.fillRect(0, 0, IMG_SIZE, IMG_SIZE);
+  const pad = 8;
+  const maxW = IMG_SIZE - pad * 2;
+  const footerH = opts.footer ? 18 : 0;
+  const availH = IMG_SIZE - pad * 2 - footerH;
+  let font = opts.maxFont ?? 18;
+  const minF = opts.minFont ?? 7;
+  let lines: string[] = [];
+  for (; font >= minF; font--) {
+    g.font = `bold ${font}px system-ui, sans-serif`;
+    lines = wrapWords(g, text, maxW);
+    if (lines.length * font * 1.25 <= availH) break;
+  }
+  const lh = font * 1.25;
+  g.textAlign = "center";
+  g.textBaseline = "middle";
+  g.fillStyle = opts.color ?? "#FFFFFF";
+  const totalH = lines.length * lh;
+  let y = pad + (availH - totalH) / 2 + lh / 2;
+  for (const ln of lines) {
+    g.fillText(ln, IMG_SIZE / 2, y);
+    y += lh;
+  }
+  if (opts.footer) {
+    g.font = "bold 12px system-ui, sans-serif";
+    g.fillStyle = opts.footerColor ?? "#7FE9FF";
+    g.fillText(opts.footer, IMG_SIZE / 2, IMG_SIZE - pad - 3);
+  }
+  return c;
+}
+
 // ---- weather widget ------------------------------------------------------
 const WX_COLOR: Record<WeatherIcon, string> = {
   clear: "#FFD23F",
