@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.2 — 2026-07-11
+
+- Fix scoreboard scores showing "[object Object]" for NBA/NHL — some sports
+  return the score as an object ({displayValue,value}) rather than a string;
+  coerce both.
+
 ## 0.7.1 — 2026-07-11
 
 - Scoreboard logo tiles now carry the team abbreviation in a bottom label, so a

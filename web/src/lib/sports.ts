@@ -60,12 +60,19 @@ function parseGame(e: any): Game {
   const c = e.competitions?.[0] ?? {};
   const st = e.status ?? c.status ?? {};
   const type = st.type ?? {};
+  // score is a string in some sports but an object ({displayValue,value}) in
+  // others (NBA/NHL) — coerce both to a display string.
+  const scoreStr = (s: any): string => {
+    if (s == null) return "";
+    if (typeof s === "object") return String(s.displayValue ?? s.value ?? "");
+    return String(s);
+  };
   const mk = (t: any): GameTeam => ({
     id: String(t.team.id),
     abbr: t.team.abbreviation,
     // scoreboard events carry team.logo; nextEvent (fallback) carries team.logos[].
     logo: t.team.logo ?? t.team.logos?.[0]?.href ?? "",
-    score: String(t.score ?? ""),
+    score: scoreStr(t.score),
   });
   const comps = c.competitors ?? [];
   return {
