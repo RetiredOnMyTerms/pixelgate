@@ -517,7 +517,10 @@ export function renderWrapped(
   for (; font >= minF; font--) {
     g.font = `bold ${font}px system-ui, sans-serif`;
     lines = wrapWords(g, text, maxW);
-    if (lines.length * font * 1.25 <= availH) break;
+    // Must fit BOTH the available height AND the width — a long unbreakable word
+    // (e.g. a long single-word city name) would otherwise overflow and clip.
+    const widest = lines.reduce((m, l) => Math.max(m, g.measureText(l).width), 0);
+    if (lines.length * font * 1.25 <= availH && widest <= maxW) break;
   }
   const lh = font * 1.25;
   g.textAlign = "center";
@@ -705,8 +708,8 @@ function statTile(caption: string, value: string, valueColor: string, capColor =
 /** Weather spread across all 5 screens: 0 city · 1 condition icon + word ·
  * 2 temperature (°F and °C) · 3 today's high · 4 today's low. */
 export function renderWeatherSpread(w: WeatherData): HTMLCanvasElement[] {
-  // 0: city
-  const city = renderWrapped(w.city, { maxFont: 34, minFont: 14, color: "#FFFFFF" });
+  // 0: city (minFont low so long single-word names shrink to fit instead of clipping)
+  const city = renderWrapped(w.city, { maxFont: 34, minFont: 8, color: "#FFFFFF" });
 
   // 1: big condition icon + description word
   const icon = newCanvas();

@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.14.1 — 2026-07-12
+
+- Fix: long single-word city names were clipped (beginning/end letters cut off)
+  on the weather "spread across 5" city tile. The auto-fit now shrinks the font
+  until the text fits the width, not just the height.
+- Fix: Quote of the Day sometimes failed with a 502 when ZenQuotes rate-limited
+  or blocked the Cloudflare egress IP. The proxy now uses a realistic User-Agent,
+  retries, and caches the last good quote at the edge for a day — serving it as a
+  fallback whenever the upstream fetch fails, so one success covers the day.
+
 ## 0.14.0 — 2026-07-12
 
 - **Weather "spread across 5 screens" layout**. A new Layout selector on the
