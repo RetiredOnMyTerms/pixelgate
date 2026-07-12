@@ -8,7 +8,7 @@ Design and push custom pixel visuals, animations, clocks, and live data to a
 > local device API that may change or break. **Use at your own risk** — see
 > [`docs/DISCLAIMER.md`](docs/DISCLAIMER.md).
 
-**Version:** 0.7.2 · [Changelog](CHANGELOG.md) · [Acknowledgements](docs/ACKNOWLEDGEMENTS.md)
+**Version:** 0.7.3 · [Changelog](CHANGELOG.md) · [Acknowledgements](docs/ACKNOWLEDGEMENTS.md)
 
 ## Why a bridge?
 
@@ -43,6 +43,35 @@ Cloudflare Pages (web app)  ──▶  local bridge 127.0.0.1  ──▶  Times 
 
 Your device IP and LocalToken live only in your browser (localStorage) and the
 local bridge — they are never sent to any cloud host.
+
+## Run it locally (development)
+
+Prereqs: **Node 20+** and **Python 3.10+**, both on your PATH.
+
+```bash
+git clone https://github.com/RetiredOnMyTerms/pixelgate
+cd pixelgate
+
+# 1) Bridge (Terminal A) — relays the browser to your LAN device
+pip install -r bridge/requirements.txt
+python bridge/app.py                 # serves http://127.0.0.1:7660
+
+# 2) Web app (Terminal B)
+cd web
+npm install
+npm run dev                          # opens http://localhost:5173
+```
+
+Open `http://localhost:5173`, click **Discover device**, paste your LocalToken,
+and send. The dev app talks to the bridge on `127.0.0.1:7660`.
+
+- **Prefer no Python?** Build a one-file bridge: `pip install pyinstaller &&
+  cd bridge && pyinstaller pixelgate-bridge.spec` → run `dist/pixelgate-bridge.exe`.
+- **Production build:** `cd web && npm run build` (outputs `web/dist/`). The hosted
+  copy is on Cloudflare Pages; either the hosted app or a local `npm run dev`
+  works, as long as the bridge is running on your machine.
+- The `functions/` (and `web/functions/`) folder holds Cloudflare Pages Functions
+  (e.g. the marquee text echo) — they deploy automatically with the site.
 
 ## CLI (no web app)
 

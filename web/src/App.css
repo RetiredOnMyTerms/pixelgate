@@ -313,6 +313,47 @@ button:hover {
   text-align: center;
 }
 
+.faq {
+  margin-top: 10px;
+}
+.faq details {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 12px;
+  margin-bottom: 8px;
+  background: #0d1220;
+}
+.faq summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--text);
+}
+.faq p {
+  color: var(--muted);
+  margin: 8px 0 2px;
+}
+
+.foot {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: center;
+  color: var(--muted);
+  font-size: 13px;
+  padding: 8px 0 24px;
+}
+.foot a {
+  color: var(--accent);
+}
+.foot-note {
+  flex-basis: 100%;
+  text-align: center;
+  color: var(--muted);
+  font-size: 12px;
+  margin-top: 4px;
+}
+
 .script textarea {
   width: 100%;
   background: #0d1220;

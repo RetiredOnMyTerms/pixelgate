@@ -43,7 +43,7 @@ import {
   type Game,
 } from "./lib/sports";
 
-const APP_VERSION = "0.7.2";
+const APP_VERSION = "0.7.3";
 
 type TemplateId = "solid" | "digital" | "ball" | "image" | "text" | "scores";
 const TEMPLATES: { id: TemplateId; label: string }[] = [
@@ -92,6 +92,35 @@ async function sportsCommands(screens: HTMLCanvasElement[]): Promise<Command[]> 
   return [resetHttpGifId(), commandList(packets)];
 }
 
+const GITHUB_URL = "https://github.com/RetiredOnMyTerms/pixelgate";
+
+const FAQ: { q: string; a: string }[] = [
+  {
+    q: "What is PixelGate?",
+    a: "An unofficial web app to design and push visuals — clocks, marquees, animations, and live sports scoreboards — to a Divoom Times Gate's five screens. Not affiliated with Divoom.",
+  },
+  {
+    q: "Why do I need the local bridge?",
+    a: "A hosted HTTPS page can't talk to the device directly: it's HTTP-only on your private network and sends no CORS headers. The small bridge runs on your own machine (127.0.0.1) and relays commands to the device. Nothing device-related leaves your LAN.",
+  },
+  {
+    q: "Where do I find my LocalToken?",
+    a: "In the Divoom phone app: tap your Times Gate → Settings → Local Token. Use the \"Where do I find my LocalToken?\" helper near the top for annotated screenshots.",
+  },
+  {
+    q: "Is my data sent to any server?",
+    a: "No. Your device IP and LocalToken live only in your browser (localStorage) and the local bridge. The hosted app never receives them.",
+  },
+  {
+    q: "Where do the sports scores come from?",
+    a: "ESPN's free public API, fetched directly in your browser (no key). It's undocumented, so it can change or rate-limit — the widget shows a \"no data\" state rather than crashing.",
+  },
+  {
+    q: "A team logo looks blurry — why?",
+    a: "Logos are quantized into pixel-art for the 128×128 LCDs. Each tile is labelled with the team abbreviation so you can always tell who's who.",
+  },
+];
+
 const BG_PRESET_HEX: Record<BgPreset, string> = {
   dark: "#05070F",
   black: "#000000",
@@ -109,6 +138,7 @@ export default function App() {
   const [reply, setReply] = useState<Friendly | null>(null);
   const [script, setScript] = useState<string | null>(null);
   const [showHelp, setShowHelp] = useState(false);
+  const [showFaq, setShowFaq] = useState(false);
   const [verifyMsg, setVerifyMsg] = useState<Friendly | null>(null);
   const [verifying, setVerifying] = useState(false);
 
@@ -729,6 +759,39 @@ export default function App() {
           </div>
         )}
       </section>
+
+      <section className="panel">
+        <button className="link" onClick={() => setShowFaq((v) => !v)}>
+          {showFaq ? "Hide FAQ" : "FAQ"}
+        </button>
+        {showFaq && (
+          <div className="faq">
+            {FAQ.map((f) => (
+              <details key={f.q}>
+                <summary>{f.q}</summary>
+                <p>{f.a}</p>
+              </details>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <footer className="foot">
+        <a href={GITHUB_URL} target="_blank" rel="noopener noreferrer">
+          GitHub
+        </a>
+        <span>·</span>
+        <a href={`${GITHUB_URL}/blob/main/docs/ACKNOWLEDGEMENTS.md`} target="_blank" rel="noopener noreferrer">
+          Acknowledgements
+        </a>
+        <span>·</span>
+        <a href={`${GITHUB_URL}/blob/main/docs/DISCLAIMER.md`} target="_blank" rel="noopener noreferrer">
+          Disclaimer
+        </a>
+        <span className="foot-note">
+          Unofficial · not affiliated with Divoom · use at your own risk
+        </span>
+      </footer>
     </div>
   );
 }

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.7.3 — 2026-07-11
+
+- On-page **FAQ** (collapsible) and a footer with GitHub / Acknowledgements /
+  Disclaimer links.
+- README: added a "Run it locally (development)" section (clone, bridge, web dev,
+  exe build).
+
 ## 0.7.2 — 2026-07-11
 
 - Fix scoreboard scores showing "[object Object]" for NBA/NHL — some sports

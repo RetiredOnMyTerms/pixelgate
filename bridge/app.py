@@ -24,7 +24,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
-VERSION = "0.7.2"
+VERSION = "0.7.3"
 DEVICE_TIMEOUT = 8
 CLOUD_DISCOVER = "https://app.divoom-gz.com/Device/ReturnSameLANDevice"
 
