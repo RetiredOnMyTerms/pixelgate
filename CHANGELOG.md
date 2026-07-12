@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.11.0 — 2026-07-12
+
+- **Weather widget** (new "Data" widget group). Enter a city name — geocoded via
+  Open-Meteo (keyless, called directly from the browser) — and the screen shows
+  the current conditions icon, temperature in **both °F and °C**, a short
+  description, and today's high / low. Renders as bold pixel art sized for the
+  128×128 screen; push to one screen or several. First data-source widget of the
+  new configurable widget system.
+
 ## 0.10.0 — 2026-07-12
 
 - **Pluggable flight data providers**. The flight tracker now has a **Provider**

@@ -51,7 +51,9 @@ import {
   renderNewtonsCradle,
   renderSolid,
   renderText,
+  renderWeather,
 } from "./lib/render";
+import { fetchWeather, type WeatherData } from "./lib/weather";
 import {
   fetchTeamGame,
   homeFirst,
@@ -76,9 +78,9 @@ import {
   type ProviderId,
 } from "./lib/flight";
 
-const APP_VERSION = "0.10.0";
+const APP_VERSION = "0.11.0";
 
-type TemplateId = "solid" | "digital" | "ball" | "image" | "text" | "scores" | "flight";
+type TemplateId = "solid" | "digital" | "ball" | "image" | "text" | "scores" | "flight" | "weather";
 const TEMPLATE_LABEL: Record<TemplateId, string> = {
   digital: "Digital clock",
   text: "Marquee",
@@ -87,12 +89,14 @@ const TEMPLATE_LABEL: Record<TemplateId, string> = {
   solid: "Solid colour",
   scores: "Sports scoreboard",
   flight: "Flight tracker",
+  weather: "Weather",
 };
 const GROUPS: { label: string; items: TemplateId[] }[] = [
   { label: "Clock", items: ["digital"] },
   { label: "Text", items: ["text"] },
   { label: "Graphics", items: ["ball", "image", "solid"] },
   { label: "Live", items: ["scores", "flight"] },
+  { label: "Data", items: ["weather"] },
 ];
 
 const DEFAULT_TEAM: Record<string, string> = { nfl: "26", mlb: "12" };
@@ -143,6 +147,12 @@ const FAQ: { q: string; a: string }[] = [
 
 // User-facing highlights (full technical log lives in CHANGELOG.md on GitHub).
 const CHANGES: { v: string; notes: string[] }[] = [
+  {
+    v: "0.11",
+    notes: [
+      "Weather widget: enter a city for live current conditions from Open-Meteo (no API key) — icon, temperature in both °F and °C, and today's high / low.",
+    ],
+  },
   {
     v: "0.9–0.10",
     notes: [
@@ -263,6 +273,12 @@ export default function App() {
   const [flightStatus, setFlightStatus] = useState<Friendly | null>(null);
   const [flightAuto, setFlightAuto] = useState(false);
 
+  // weather widget
+  const [weatherCity, setWeatherCity] = useState<string>(() => localStorage.getItem("pixelgate.weatherCity") || "");
+  const [weather, setWeather] = useState<WeatherData | null>(null);
+  const [weatherCanvas, setWeatherCanvas] = useState<HTMLCanvasElement | null>(null);
+  const [weatherStatus, setWeatherStatus] = useState<Friendly | null>(null);
+
   const previewRef = useRef<HTMLCanvasElement>(null);
   const stripRef = useRef<HTMLCanvasElement>(null);
   const prevTemplate = useRef<TemplateId>("digital");
@@ -314,6 +330,10 @@ export default function App() {
     const u = v.toUpperCase();
     setFlightCode(u);
     localStorage.setItem("pixelgate.flight", u);
+  };
+  const setCity = (v: string) => {
+    setWeatherCity(v);
+    localStorage.setItem("pixelgate.weatherCity", v);
   };
 
   const refreshScores = useCallback(async () => {
@@ -397,6 +417,30 @@ export default function App() {
     }
   }, [template, refreshFlight, asKey, flightCode]);
 
+  // Weather: geocode the city + fetch current conditions, render a frame.
+  const refreshWeather = useCallback(async () => {
+    setWeatherStatus(null);
+    if (!weatherCity.trim()) return setWeatherStatus({ ok: false, msg: "Enter a city name first." });
+    try {
+      const w = await fetchWeather(weatherCity);
+      if (!w) {
+        setWeather(null);
+        setWeatherCanvas(null);
+        return setWeatherStatus({ ok: false, msg: `Couldn't find "${weatherCity}". Try a different spelling.` });
+      }
+      setWeather(w);
+      setWeatherCanvas(renderWeather(w));
+      setWeatherStatus({ ok: true, msg: `${w.city}: ${w.tempF}°F / ${w.tempC}°C · ${w.desc}` });
+    } catch (e) {
+      setWeatherStatus({ ok: false, msg: (e as Error).message });
+    }
+  }, [weatherCity]);
+
+  useEffect(() => {
+    if (template === "weather" && weatherCity.trim()) refreshWeather();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [template]);
+
   const buildPreview = useCallback(async (): Promise<HTMLCanvasElement | null> => {
     switch (template) {
       case "solid":
@@ -409,11 +453,13 @@ export default function App() {
         return imageCanvas;
       case "text":
         return renderText(textValue, textColor, BG_PRESET_HEX[textBg]);
+      case "weather":
+        return weatherCanvas;
       case "scores":
       case "flight":
         return null;
     }
-  }, [template, solidColor, textColor, textValue, seconds, imageCanvas, clockBg, textBg]);
+  }, [template, solidColor, textColor, textValue, seconds, imageCanvas, clockBg, textBg, weatherCanvas]);
 
   useEffect(() => {
     let cancelled = false;
@@ -490,6 +536,12 @@ export default function App() {
         if (!imageCanvas) throw new Error("no image chosen");
         canvases = [imageCanvas];
         break;
+      case "weather": {
+        const wc = weatherCanvas ?? (weather ? renderWeather(weather) : null);
+        if (!wc) throw new Error("no weather data — enter a city and press Refresh");
+        canvases = [wc];
+        break;
+      }
       default:
         canvases = [renderSolid("#000000")];
     }
@@ -501,6 +553,7 @@ export default function App() {
     imageCanvas, clockBig, clockX, clockY, clockBg, textBg, cradleRandom,
     scoreScreens, game, league, favTeam,
     flightScreens, flight, flightProvider, asKey, flightCode,
+    weatherCanvas, weather,
   ]);
 
   useEffect(() => {
@@ -662,6 +715,7 @@ export default function App() {
 
   const isScores = template === "scores";
   const isFlight = template === "flight";
+  const isWeather = template === "weather";
   const isStrip = isScores || isFlight;
   const bgSelect = (value: BgPreset, onChange: (v: BgPreset) => void) => (
     <Select.Root value={value} onValueChange={(v) => onChange(v as BgPreset)}>
@@ -945,6 +999,30 @@ export default function App() {
               </>
               );
             })()}
+
+            {isWeather && (
+              <>
+                <label className="field" style={{ minWidth: 200 }}>
+                  <Text size="1" color="gray">City</Text>
+                  <TextField.Root value={weatherCity} placeholder="e.g. Seattle"
+                    onChange={(e) => setCity(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") refreshWeather(); }} />
+                </label>
+                <Button variant="soft" onClick={refreshWeather}>Refresh</Button>
+                {weather && (
+                  <Badge color="gray" variant="soft">
+                    {weather.city} · {weather.tempF}°F / {weather.tempC}°C · {weather.desc}
+                  </Badge>
+                )}
+                {weatherStatus && (
+                  <Text size="1" color={weatherStatus.ok ? "green" : "amber"}>{weatherStatus.msg}</Text>
+                )}
+                <Text size="1" color="gray" style={{ flexBasis: "100%" }}>
+                  Live conditions from Open-Meteo (no API key). Pick screens above, then Send.
+                  Shows current temperature in both °F and °C plus today's high / low.
+                </Text>
+              </>
+            )}
           </Flex>
         </Card>
 

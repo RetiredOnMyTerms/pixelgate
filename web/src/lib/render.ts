@@ -2,6 +2,7 @@
 // resulting canvases to base64 JPEG via timesgate.canvasToJpegBase64.
 
 import { IMG_SIZE } from "./timesgate";
+import type { WeatherData, WeatherIcon } from "./weather";
 
 export function newCanvas(): HTMLCanvasElement {
   const c = document.createElement("canvas");
@@ -478,4 +479,152 @@ export async function imageFileToCanvas(file: File): Promise<HTMLCanvasElement> 
   } finally {
     URL.revokeObjectURL(url);
   }
+}
+
+// ---- weather widget ------------------------------------------------------
+const WX_COLOR: Record<WeatherIcon, string> = {
+  clear: "#FFD23F",
+  partly: "#FFD23F",
+  cloud: "#B7C0D0",
+  fog: "#9AA4BD",
+  rain: "#5AA9FF",
+  snow: "#E8F4FF",
+  storm: "#FFE14D",
+};
+
+function drawSun(g: CanvasRenderingContext2D, cx: number, cy: number, r: number) {
+  g.strokeStyle = "#FFD23F";
+  g.lineWidth = 3;
+  for (let i = 0; i < 8; i++) {
+    const a = (i * Math.PI) / 4;
+    g.beginPath();
+    g.moveTo(cx + Math.cos(a) * (r + 3), cy + Math.sin(a) * (r + 3));
+    g.lineTo(cx + Math.cos(a) * (r + 9), cy + Math.sin(a) * (r + 9));
+    g.stroke();
+  }
+  g.fillStyle = "#FFD23F";
+  g.beginPath();
+  g.arc(cx, cy, r, 0, Math.PI * 2);
+  g.fill();
+}
+
+function drawCloud(g: CanvasRenderingContext2D, cx: number, cy: number, s: number, color: string) {
+  g.fillStyle = color;
+  g.beginPath();
+  g.arc(cx - s * 0.6, cy, s * 0.55, 0, Math.PI * 2);
+  g.arc(cx + s * 0.6, cy, s * 0.6, 0, Math.PI * 2);
+  g.arc(cx, cy - s * 0.5, s * 0.65, 0, Math.PI * 2);
+  g.fill();
+  g.fillRect(cx - s * 1.15, cy - 1, s * 2.3, s * 0.8);
+}
+
+function drawWxIcon(g: CanvasRenderingContext2D, cx: number, cy: number, icon: WeatherIcon) {
+  const s = 15;
+  switch (icon) {
+    case "clear":
+      drawSun(g, cx, cy, 14);
+      break;
+    case "partly":
+      drawSun(g, cx - 10, cy - 12, 9);
+      drawCloud(g, cx + 3, cy + 4, s, "#B7C0D0");
+      break;
+    case "cloud":
+      drawCloud(g, cx, cy, s, "#B7C0D0");
+      break;
+    case "fog":
+      drawCloud(g, cx, cy - 4, s, "#B7C0D0");
+      g.strokeStyle = "#9AA4BD";
+      g.lineWidth = 3;
+      for (let i = 0; i < 3; i++) {
+        const y = cy + 14 + i * 7;
+        g.beginPath();
+        g.moveTo(cx - 16, y);
+        g.lineTo(cx + 16, y);
+        g.stroke();
+      }
+      break;
+    case "rain":
+      drawCloud(g, cx, cy - 4, s, "#8892A6");
+      g.strokeStyle = "#5AA9FF";
+      g.lineWidth = 3;
+      for (let i = -1; i <= 1; i++) {
+        const x = cx + i * 11;
+        g.beginPath();
+        g.moveTo(x + 3, cy + 12);
+        g.lineTo(x - 2, cy + 24);
+        g.stroke();
+      }
+      break;
+    case "snow":
+      drawCloud(g, cx, cy - 4, s, "#8892A6");
+      g.fillStyle = "#E8F4FF";
+      for (let i = -1; i <= 1; i++) {
+        g.beginPath();
+        g.arc(cx + i * 11, cy + 18, 2.6, 0, Math.PI * 2);
+        g.fill();
+      }
+      break;
+    case "storm":
+      drawCloud(g, cx, cy - 4, s, "#7A8296");
+      g.fillStyle = "#FFE14D";
+      g.beginPath();
+      g.moveTo(cx + 2, cy + 8);
+      g.lineTo(cx - 8, cy + 22);
+      g.lineTo(cx - 1, cy + 22);
+      g.lineTo(cx - 6, cy + 32);
+      g.lineTo(cx + 9, cy + 16);
+      g.lineTo(cx + 1, cy + 16);
+      g.closePath();
+      g.fill();
+      break;
+  }
+}
+
+/** Weather widget: city, an icon for current conditions, the temperature in both
+ * °F (big) and °C (small), and today's high/low. Built to stay legible at 128px. */
+export function renderWeather(w: WeatherData): HTMLCanvasElement {
+  const c = newCanvas();
+  const g = c.getContext("2d")!;
+  g.fillStyle = "#000000";
+  g.fillRect(0, 0, IMG_SIZE, IMG_SIZE);
+  g.textAlign = "center";
+  g.textBaseline = "middle";
+
+  // city
+  g.fillStyle = "#FFFFFF";
+  fitFont(g, w.city, 124, 18);
+  g.fillText(w.city, IMG_SIZE / 2, 11);
+
+  // condition icon (left) — draw before temp so text is never occluded
+  drawWxIcon(g, 34, 50, w.icon);
+
+  // temperature: °F big, °C small underneath (right half)
+  g.textAlign = "center";
+  g.fillStyle = "#FFFFFF";
+  fitFont(g, `${w.tempF}°`, 66, 36);
+  g.fillText(`${w.tempF}°`, 92, 44);
+  g.fillStyle = "#9AA4BD";
+  g.font = "bold 15px system-ui, sans-serif";
+  g.fillText(`${w.tempC}°C`, 92, 70);
+
+  // description
+  g.fillStyle = WX_COLOR[w.icon];
+  fitFont(g, w.desc, 124, 18);
+  g.fillText(w.desc, IMG_SIZE / 2, 94);
+
+  // today's high / low
+  g.font = "bold 14px system-ui, sans-serif";
+  const hi = `H ${w.hiF}°`;
+  const lo = `L ${w.loF}°`;
+  const gap = 12;
+  const wHi = g.measureText(hi).width;
+  const wLo = g.measureText(lo).width;
+  const total = wHi + gap + wLo;
+  const startX = (IMG_SIZE - total) / 2;
+  g.textAlign = "left";
+  g.fillStyle = "#FF9E4A";
+  g.fillText(hi, startX, 114);
+  g.fillStyle = "#6FC7FF";
+  g.fillText(lo, startX + wHi + gap, 114);
+  return c;
 }
