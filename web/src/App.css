@@ -1,233 +1,33 @@
-:root {
-  color-scheme: dark;
-  --bg: #0b0f1a;
-  --panel: #141a2a;
-  --line: #26304a;
-  --text: #e6ebf5;
-  --muted: #8b95ad;
-  --accent: #00c8ff;
-}
+/* Only custom bits Radix Themes doesn't cover (canvases, colour input, etc.). */
 
-* {
-  box-sizing: border-box;
-}
-
-body {
-  margin: 0;
-  background: var(--bg);
-  color: var(--text);
-  font: 14px/1.5 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
-}
-
-.app {
-  max-width: 760px;
-  margin: 0 auto;
-  padding: 24px 16px 64px;
-}
-
-header h1 {
-  margin: 0;
-  font-size: 26px;
-  letter-spacing: 0.5px;
-}
-
-.badge {
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-  background: #3a2030;
-  color: #ff7aa8;
-  border: 1px solid #5a2f45;
-  padding: 2px 7px;
-  border-radius: 999px;
-  vertical-align: middle;
-}
-
-.sub {
-  color: var(--muted);
-  margin: 4px 0 20px;
-}
-
-.sub a {
-  color: var(--accent);
-}
-
-.panel {
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  padding: 16px;
-  margin-bottom: 16px;
-}
-
-.panel h2 {
-  margin: 0 0 12px;
-  font-size: 14px;
-  color: var(--muted);
-  text-transform: uppercase;
-  letter-spacing: 1px;
-}
-
-.row {
-  display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  margin-bottom: 10px;
-}
-
-label {
+.field {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  font-size: 12px;
-  color: var(--muted);
 }
 
-label.grow {
-  flex: 1 1 220px;
-}
-
-label.check {
-  flex-direction: row;
-  align-items: center;
-  gap: 6px;
-  color: var(--text);
-}
-
-input {
-  background: #0d1220;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  color: var(--text);
-  padding: 8px 10px;
-  font: inherit;
-}
-
-input[type="color"] {
-  padding: 2px;
-  height: 36px;
+.color {
   width: 48px;
-}
-
-select {
-  background: #0d1220;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  color: var(--text);
-  padding: 8px 10px;
-  font: inherit;
-}
-
-input[type="range"] {
-  width: 120px;
-}
-
-.hint {
-  align-self: center;
-  font-size: 11px;
-  color: var(--muted);
-  max-width: 200px;
-}
-
-button {
-  background: #1d2740;
-  border: 1px solid var(--line);
-  color: var(--text);
-  border-radius: 8px;
-  padding: 8px 14px;
-  font: inherit;
+  height: 32px;
+  padding: 2px;
+  border: 1px solid var(--gray-6);
+  border-radius: 6px;
+  background: transparent;
   cursor: pointer;
 }
 
-button:hover {
-  border-color: var(--accent);
-}
-
-.screens,
-.templates {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.screen {
-  width: 44px;
-  height: 44px;
-  font-size: 16px;
-  font-weight: 600;
-}
-
-.screen.on,
-.tmpl.on {
-  background: var(--accent);
-  color: #04121a;
-  border-color: var(--accent);
-}
-
-.controls {
-  display: flex;
-  gap: 14px;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  margin-top: 14px;
-}
-
-.ok {
-  color: #4ade80;
-  align-self: center;
-}
-.bad {
-  color: #fbbf24;
-  align-self: center;
-  font-size: 12px;
-}
-
-.verify {
-  border-color: var(--accent);
-  color: var(--accent);
-}
-
-.livemsg {
-  align-self: center;
-  font-size: 12px;
-  color: #4ade80;
-}
-.verify:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.msg {
+.help-img {
+  width: 100%;
   border-radius: 8px;
-  padding: 10px 12px;
-  margin: 10px 0 0;
-  font-size: 13px;
-  border: 1px solid var(--line);
-}
-.msg.ok {
-  background: rgba(74, 222, 128, 0.1);
-  border-color: rgba(74, 222, 128, 0.4);
-  color: #86efac;
-}
-.msg.bad {
-  background: rgba(251, 191, 36, 0.08);
-  border-color: rgba(251, 191, 36, 0.4);
-  color: #fcd34d;
-}
-
-.preview-wrap {
-  display: flex;
-  gap: 20px;
-  align-items: flex-start;
-  flex-wrap: wrap;
+  border: 1px solid var(--gray-6);
+  display: block;
 }
 
 .preview {
   width: 256px;
   height: 256px;
   image-rendering: pixelated;
-  border: 1px solid var(--line);
+  border: 1px solid var(--gray-6);
   border-radius: 8px;
   background: #000;
 }
@@ -236,131 +36,37 @@ button:hover {
   width: 100%;
   max-width: 640px;
   image-rendering: pixelated;
-  border: 1px solid var(--line);
+  border: 1px solid var(--gray-6);
   border-radius: 8px;
   background: #000;
 }
 
-.send-col {
-  flex: 1 1 240px;
-  min-width: 240px;
-}
-
-.send {
-  background: var(--accent);
-  color: #04121a;
-  font-weight: 600;
+.script-ta {
   width: 100%;
-  max-width: 360px;
-  padding: 12px;
-}
-
-.send:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.reply {
-  margin-top: 12px;
-  background: #0d1220;
-  border: 1px solid var(--line);
+  margin-top: 8px;
+  background: var(--gray-2);
+  color: var(--gray-12);
+  border: 1px solid var(--gray-6);
   border-radius: 8px;
-  padding: 10px;
-  white-space: pre-wrap;
-  word-break: break-word;
-  color: var(--muted);
-}
-
-.link {
-  background: none;
-  border: none;
-  color: var(--accent);
-  padding: 8px 0 0;
-  cursor: pointer;
-  font-size: 13px;
-  text-decoration: underline;
-}
-
-.help {
-  margin-top: 10px;
-  color: var(--muted);
-}
-
-.help-steps {
-  display: flex;
-  gap: 14px;
-  flex-wrap: wrap;
-  margin-top: 10px;
-}
-
-.help-steps figure {
-  margin: 0;
-  flex: 1 1 180px;
-  max-width: 220px;
-}
-
-.help-steps img {
-  width: 100%;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  display: block;
-}
-
-.help-steps figcaption {
-  color: var(--text);
-  font-size: 12px;
-  margin-top: 6px;
-  text-align: center;
-}
-
-.faq {
-  margin-top: 10px;
-}
-.faq details {
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 8px 12px;
-  margin-bottom: 8px;
-  background: #0d1220;
-}
-.faq summary {
-  cursor: pointer;
-  font-weight: 600;
-  color: var(--text);
-}
-.faq p {
-  color: var(--muted);
-  margin: 8px 0 2px;
-}
-
-.foot {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  flex-wrap: wrap;
-  justify-content: center;
-  color: var(--muted);
-  font-size: 13px;
-  padding: 8px 0 24px;
-}
-.foot a {
-  color: var(--accent);
-}
-.foot-note {
-  flex-basis: 100%;
-  text-align: center;
-  color: var(--muted);
-  font-size: 12px;
-  margin-top: 4px;
-}
-
-.script textarea {
-  width: 100%;
-  background: #0d1220;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  color: var(--text);
   font: 12px/1.5 Consolas, monospace;
   padding: 10px;
-  margin-top: 8px;
+}
+
+.faq-item {
+  border: 1px solid var(--gray-6);
+  border-radius: 8px;
+  padding: 8px 12px;
+}
+.faq-item summary {
+  cursor: pointer;
+  font-weight: 500;
+  color: var(--gray-12);
+}
+
+.changes {
+  margin: 4px 0 0;
+  padding-left: 18px;
+}
+.changes li {
+  margin-bottom: 4px;
 }

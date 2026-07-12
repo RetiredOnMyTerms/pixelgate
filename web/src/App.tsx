@@ -1,5 +1,23 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import "./App.css";
+import {
+  Badge,
+  Box,
+  Button,
+  Callout,
+  Card,
+  Container,
+  Flex,
+  Grid,
+  Heading,
+  Link,
+  Select,
+  Separator,
+  Slider,
+  Switch,
+  Text,
+  TextField,
+} from "@radix-ui/themes";
 import { loadConfig, saveConfig, type Config } from "./lib/store";
 import {
   detectBridge,
@@ -43,19 +61,24 @@ import {
   type Game,
 } from "./lib/sports";
 
-const APP_VERSION = "0.7.3";
+const APP_VERSION = "0.8.0";
 
 type TemplateId = "solid" | "digital" | "ball" | "image" | "text" | "scores";
-const TEMPLATES: { id: TemplateId; label: string }[] = [
-  { id: "digital", label: "Digital clock" },
-  { id: "text", label: "Text / marquee" },
-  { id: "ball", label: "Newton's cradle" },
-  { id: "image", label: "Image upload" },
-  { id: "solid", label: "Solid colour" },
-  { id: "scores", label: "Sports scoreboard" },
+const TEMPLATE_LABEL: Record<TemplateId, string> = {
+  digital: "Digital clock",
+  text: "Marquee",
+  ball: "Newton's cradle",
+  image: "Image",
+  solid: "Solid colour",
+  scores: "Sports scoreboard",
+};
+const GROUPS: { label: string; items: TemplateId[] }[] = [
+  { label: "Clock", items: ["digital"] },
+  { label: "Text", items: ["text"] },
+  { label: "Graphics", items: ["ball", "image", "solid"] },
+  { label: "Live sports", items: ["scores"] },
 ];
 
-// Default favourite per league (Seattle: Seahawks / Mariners).
 const DEFAULT_TEAM: Record<string, string> = { nfl: "26", mlb: "12" };
 function loadFav(league: string): string {
   return (
@@ -65,11 +88,68 @@ function loadFav(league: string): string {
   );
 }
 
+const BG_PRESETS: BgPreset[] = ["dark", "black", "navy", "plum", "white"];
+const BG_PRESET_HEX: Record<BgPreset, string> = {
+  dark: "#05070F",
+  black: "#000000",
+  navy: "#0A1030",
+  plum: "#1A081E",
+  white: "#F0F0F0",
+};
+
+const GITHUB_URL = "https://github.com/RetiredOnMyTerms/pixelgate";
+const FAQ: { q: string; a: string }[] = [
+  {
+    q: "What is PixelGate?",
+    a: "An unofficial web app to design and push visuals — clocks, marquees, animations, and live sports scoreboards — to a Divoom Times Gate's five screens. Not affiliated with Divoom.",
+  },
+  {
+    q: "Why do I need the local bridge?",
+    a: "A hosted HTTPS page can't talk to the device directly: it's HTTP-only on your private network and sends no CORS headers. The small bridge runs on your own machine (127.0.0.1) and relays commands to the device. Nothing device-related leaves your LAN.",
+  },
+  {
+    q: "Where do I find my LocalToken?",
+    a: 'In the Divoom phone app: tap your Times Gate → Settings → Local Token. Use the "Where do I find my LocalToken?" helper near the top for annotated screenshots.',
+  },
+  {
+    q: "Is my data sent to any server?",
+    a: "No. Your device IP and LocalToken live only in your browser (localStorage) and the local bridge. The hosted app never receives them.",
+  },
+  {
+    q: "Where do the sports scores come from?",
+    a: 'ESPN\'s free public API, fetched directly in your browser (no key). It\'s undocumented, so it can change or rate-limit — the widget shows a "no data" state rather than crashing.',
+  },
+  {
+    q: "A team logo looks blurry — why?",
+    a: "Logos are quantized into pixel-art for the 128×128 LCDs. Each tile is labelled with the team abbreviation so you can always tell who's who.",
+  },
+];
+
+// User-facing highlights (full technical log lives in CHANGELOG.md on GitHub).
+const CHANGES: { v: string; notes: string[] }[] = [
+  { v: "0.8.0", notes: ["New Radix-themed UI; display options grouped by category.", "On-page changelog and FAQ."] },
+  {
+    v: "0.5–0.7",
+    notes: [
+      "Sports scoreboard: NFL, NBA, MLB, NHL + 7 soccer leagues (MLS, Premier League, Championship, Ligue 1, La Liga, Bundesliga, Serie A).",
+      "Team logos as pixel-art with abbreviation labels; upcoming / live / final states; auto-update polling (fast when live).",
+      "Soccer lists the home team first; US leagues away-first.",
+    ],
+  },
+  {
+    v: "0.3–0.4",
+    notes: [
+      "On-device self-updating digital clock, scrolling marquee, Newton's cradle (synced across all 5 screens), image upload, solid colour.",
+      "Verify connection, friendly status messages, and a LocalToken helper with annotated screenshots.",
+    ],
+  },
+  { v: "0.2", notes: ["Hosted web app + local bridge; 5-screen targeting with live preview."] },
+];
+
 async function framesToB64(canvases: HTMLCanvasElement[]): Promise<string[]> {
   return Promise.all(canvases.map((c) => canvasToJpegBase64(c)));
 }
 
-// Human label for the selected screens (1-based; "all screens" when every one).
 function describeScreens(screens: number[]): string {
   if (screens.length === SCREEN_COUNT) return "all screens";
   if (screens.length > 1) return `screens ${screens.map((s) => s + 1).join(", ")}`;
@@ -77,7 +157,6 @@ function describeScreens(screens: number[]): string {
   return "no screens";
 }
 
-// Atomic 5-screen push (one Draw/CommandList so screens update together).
 async function sportsCommands(screens: HTMLCanvasElement[]): Promise<Command[]> {
   resetPicIdCounter();
   const packets: Command[] = [];
@@ -92,42 +171,23 @@ async function sportsCommands(screens: HTMLCanvasElement[]): Promise<Command[]> 
   return [resetHttpGifId(), commandList(packets)];
 }
 
-const GITHUB_URL = "https://github.com/RetiredOnMyTerms/pixelgate";
+/** Labelled colour swatch (native input; Radix has no colour picker). */
+function ColorField({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+  return (
+    <label className="field">
+      <Text size="1" color="gray">{label}</Text>
+      <input type="color" value={value} onChange={(e) => onChange(e.target.value)} className="color" />
+    </label>
+  );
+}
 
-const FAQ: { q: string; a: string }[] = [
-  {
-    q: "What is PixelGate?",
-    a: "An unofficial web app to design and push visuals — clocks, marquees, animations, and live sports scoreboards — to a Divoom Times Gate's five screens. Not affiliated with Divoom.",
-  },
-  {
-    q: "Why do I need the local bridge?",
-    a: "A hosted HTTPS page can't talk to the device directly: it's HTTP-only on your private network and sends no CORS headers. The small bridge runs on your own machine (127.0.0.1) and relays commands to the device. Nothing device-related leaves your LAN.",
-  },
-  {
-    q: "Where do I find my LocalToken?",
-    a: "In the Divoom phone app: tap your Times Gate → Settings → Local Token. Use the \"Where do I find my LocalToken?\" helper near the top for annotated screenshots.",
-  },
-  {
-    q: "Is my data sent to any server?",
-    a: "No. Your device IP and LocalToken live only in your browser (localStorage) and the local bridge. The hosted app never receives them.",
-  },
-  {
-    q: "Where do the sports scores come from?",
-    a: "ESPN's free public API, fetched directly in your browser (no key). It's undocumented, so it can change or rate-limit — the widget shows a \"no data\" state rather than crashing.",
-  },
-  {
-    q: "A team logo looks blurry — why?",
-    a: "Logos are quantized into pixel-art for the 128×128 LCDs. Each tile is labelled with the team abbreviation so you can always tell who's who.",
-  },
-];
-
-const BG_PRESET_HEX: Record<BgPreset, string> = {
-  dark: "#05070F",
-  black: "#000000",
-  navy: "#0A1030",
-  plum: "#1A081E",
-  white: "#F0F0F0",
-};
+function Msg({ m }: { m: Friendly }) {
+  return (
+    <Callout.Root color={m.ok ? "green" : "amber"} size="1" mt="2">
+      <Callout.Text>{m.msg}</Callout.Text>
+    </Callout.Root>
+  );
+}
 
 export default function App() {
   const [cfg, setCfg] = useState<Config>(loadConfig());
@@ -139,29 +199,23 @@ export default function App() {
   const [script, setScript] = useState<string | null>(null);
   const [showHelp, setShowHelp] = useState(false);
   const [showFaq, setShowFaq] = useState(false);
+  const [showChanges, setShowChanges] = useState(false);
   const [verifyMsg, setVerifyMsg] = useState<Friendly | null>(null);
   const [verifying, setVerifying] = useState(false);
 
-  // template params
   const [solidColor, setSolidColor] = useState("#00C8FF");
   const [textValue, setTextValue] = useState("HELLO TIMES GATE");
   const [textColor, setTextColor] = useState("#00E5FF");
   const [textBg, setTextBg] = useState<BgPreset>("dark");
   const [seconds, setSeconds] = useState(true);
   const [imageCanvas, setImageCanvas] = useState<HTMLCanvasElement | null>(null);
-  // digital clock (on-device) tuning
   const [clockBig, setClockBig] = useState(true);
   const [clockX, setClockX] = useState(39);
   const [clockY, setClockY] = useState(32);
   const [clockBg, setClockBg] = useState<BgPreset>("dark");
   const [cradleRandom, setCradleRandom] = useState(false);
-  // sports scoreboard
-  const [league, setLeague] = useState<string>(
-    () => localStorage.getItem("pixelgate.league") || "nfl",
-  );
-  const [favTeam, setFavTeam] = useState<string>(() =>
-    loadFav(localStorage.getItem("pixelgate.league") || "nfl"),
-  );
+  const [league, setLeague] = useState<string>(() => localStorage.getItem("pixelgate.league") || "nfl");
+  const [favTeam, setFavTeam] = useState<string>(() => loadFav(localStorage.getItem("pixelgate.league") || "nfl"));
   const [game, setGame] = useState<Game | null>(null);
   const [scoreScreens, setScoreScreens] = useState<HTMLCanvasElement[]>([]);
   const [scoreStatus, setScoreStatus] = useState<Friendly | null>(null);
@@ -193,7 +247,6 @@ export default function App() {
     localStorage.setItem(`pixelgate.fav.${league}`, id);
   };
 
-  // Fetch the team's game + render the 5 screens (for preview and manual send).
   const refreshScores = useCallback(async () => {
     setScoreStatus(null);
     try {
@@ -212,7 +265,6 @@ export default function App() {
     }
   }, [league, favTeam]);
 
-  // Refresh when the widget becomes active or league/team changes; it drives all 5.
   useEffect(() => {
     if (template === "scores") {
       setScreens([0, 1, 2, 3, 4]);
@@ -220,7 +272,6 @@ export default function App() {
     }
   }, [template, league, favTeam, refreshScores]);
 
-  // Draw the 5-screen scoreboard preview strip.
   useEffect(() => {
     const cv = scoresPreviewRef.current;
     if (!cv) return;
@@ -231,7 +282,6 @@ export default function App() {
     scoreScreens.forEach((s, i) => g.drawImage(s, i * 128, 0));
   }, [scoreScreens]);
 
-  // Build the preview frame (first frame of the current template).
   const buildPreview = useCallback(async (): Promise<HTMLCanvasElement | null> => {
     switch (template) {
       case "solid":
@@ -245,11 +295,10 @@ export default function App() {
       case "text":
         return renderText(textValue, textColor, BG_PRESET_HEX[textBg]);
       case "scores":
-        return null; // uses its own 5-screen preview strip
+        return null;
     }
   }, [template, solidColor, textColor, textValue, seconds, imageCanvas, clockBg, textBg]);
 
-  // Repaint preview whenever inputs change.
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -265,25 +314,15 @@ export default function App() {
     };
   }, [buildPreview]);
 
-  // Build the command list to send for the current template.
   const buildCommands = useCallback(async (): Promise<Command[]> => {
-    // Digital clock is on-device self-updating (ItemList) — not a JPEG push.
     if (template === "digital") {
       return buildDigitalClock(screens, {
-        color: textColor,
-        big: clockBig,
-        stacked: seconds,
-        x: clockX,
-        y: clockY,
-        bg: clockBg,
+        color: textColor, big: clockBig, stacked: seconds, x: clockX, y: clockY, bg: clockBg,
       });
     }
-    // Scrolling text is on-device (ItemList type 23 via our echo Function).
     if (template === "text") {
       return buildScrollingText(screens, { text: textValue, color: textColor, bg: textBg });
     }
-    // Sports scoreboard: push all 5 screens together (uses already-rendered
-    // preview screens when available, else fetches fresh).
     if (template === "scores") {
       let sc = scoreScreens;
       if (sc.length !== SCREEN_COUNT) {
@@ -296,8 +335,6 @@ export default function App() {
     }
     const cmds: Command[] = [resetHttpGifId()];
     resetPicIdCounter();
-    // Newton's cradle: when all 5 screens are selected, one sphere per screen
-    // spans the device; otherwise a full 5-ball cradle on each chosen screen.
     if (template === "ball") {
       const numSwing = cradleRandom ? (Math.random() < 0.5 ? 1 : 2) : 1;
       if (screens.length === SCREEN_COUNT) {
@@ -308,11 +345,7 @@ export default function App() {
           const mask = lcdMask(i);
           const picId = nextPicId();
           b64.forEach((data, off) =>
-            packets.push(
-              sendHttpGifFrame({
-                mask, picNum: b64.length, picOffset: off, picId, picSpeed: 60, picData: data,
-              }),
-            ),
+            packets.push(sendHttpGifFrame({ mask, picNum: b64.length, picOffset: off, picId, picSpeed: 60, picData: data })),
           );
         }
         cmds.push(commandList(packets));
@@ -344,7 +377,6 @@ export default function App() {
     scoreScreens, game, league, favTeam,
   ]);
 
-  // Auto-refresh polling for the scoreboard: fast while live, slow when idle.
   useEffect(() => {
     if (!(scoreAuto && template === "scores" && bridge.ok && cfg.deviceIp && cfg.localToken)) return;
     let stopped = false;
@@ -358,14 +390,9 @@ export default function App() {
           const sc = await renderScreens(g, lg);
           setGame(g);
           setScoreScreens(sc);
-          const cmds = (await sportsCommands(sc)).map((c) => ({
-            ...c, LocalToken: Number(cfg.localToken),
-          }));
+          const cmds = (await sportsCommands(sc)).map((c) => ({ ...c, LocalToken: Number(cfg.localToken) }));
           await pushSequence(cfg.bridgePort, cfg.deviceIp, cmds);
-          setScoreStatus({
-            ok: true,
-            msg: `Updated ${new Date().toLocaleTimeString()} · ${g.state === "in" ? "LIVE" : g.state}`,
-          });
+          setScoreStatus({ ok: true, msg: `Updated ${new Date().toLocaleTimeString()} · ${g.state === "in" ? "LIVE" : g.state}` });
           if (!stopped) timer = window.setTimeout(tick, pollIntervalMs(g));
         } else if (!stopped) {
           timer = window.setTimeout(tick, 7 * 60_000);
@@ -381,7 +408,6 @@ export default function App() {
     };
   }, [scoreAuto, template, bridge.ok, cfg.deviceIp, cfg.localToken, cfg.bridgePort, league, favTeam]);
 
-  // Core push, shared by the manual Send button.
   const doPush = useCallback(async (): Promise<Friendly> => {
     const cmds = await buildCommands();
     if (!bridge.ok) {
@@ -399,21 +425,14 @@ export default function App() {
   const send = useCallback(async () => {
     setReply(null);
     setScript(null);
-    if (!cfg.deviceIp)
-      return setReply({ ok: false, msg: "Enter your device IP first (or click Discover)." });
+    if (!cfg.deviceIp) return setReply({ ok: false, msg: "Enter your device IP first (or click Discover)." });
     if (!cfg.localToken)
-      return setReply({
-        ok: false,
-        msg: 'Enter your LocalToken first — see "Where do I find my LocalToken?"',
-      });
+      return setReply({ ok: false, msg: 'Enter your LocalToken first — see "Where do I find my LocalToken?"' });
     setBusy(true);
     try {
       setReply(await doPush());
     } catch {
-      setReply({
-        ok: false,
-        msg: "Couldn't reach the local bridge — make sure it's running on your machine.",
-      });
+      setReply({ ok: false, msg: "Couldn't reach the local bridge — make sure it's running on your machine." });
     } finally {
       setBusy(false);
     }
@@ -423,8 +442,7 @@ export default function App() {
     setVerifyMsg(null);
     if (!cfg.deviceIp) return setVerifyMsg({ ok: false, msg: "Enter your device IP first." });
     if (!cfg.localToken) return setVerifyMsg({ ok: false, msg: "Enter your LocalToken first." });
-    if (!bridge.ok)
-      return setVerifyMsg({ ok: false, msg: "Start the local bridge first, then verify." });
+    if (!bridge.ok) return setVerifyMsg({ ok: false, msg: "Start the local bridge first, then verify." });
     setVerifying(true);
     try {
       setVerifyMsg(await verifyConnection(cfg.bridgePort, cfg.deviceIp, Number(cfg.localToken)));
@@ -434,18 +452,13 @@ export default function App() {
   }, [cfg, bridge]);
 
   const toggleScreen = (i: number) =>
-    setScreens((prev) =>
-      prev.includes(i) ? prev.filter((s) => s !== i) : [...prev, i].sort(),
-    );
+    setScreens((prev) => (prev.includes(i) ? prev.filter((s) => s !== i) : [...prev, i].sort()));
 
   const runDiscover = async () => {
     setVerifyMsg(null);
-    if (!bridge.ok)
-      return setVerifyMsg({ ok: false, msg: "Start the local bridge first, then Discover." });
+    if (!bridge.ok) return setVerifyMsg({ ok: false, msg: "Start the local bridge first, then Discover." });
     try {
-      const d = (await discover(cfg.bridgePort)) as {
-        DeviceList?: { DevicePrivateIP: string; DeviceName: string }[];
-      };
+      const d = (await discover(cfg.bridgePort)) as { DeviceList?: { DevicePrivateIP: string; DeviceName: string }[] };
       const found = d.DeviceList?.[0];
       if (found) {
         persist({ ...cfg, deviceIp: found.DevicePrivateIP });
@@ -459,339 +472,307 @@ export default function App() {
   };
 
   const isScores = template === "scores";
+  const bgSelect = (value: BgPreset, onChange: (v: BgPreset) => void) => (
+    <Select.Root value={value} onValueChange={(v) => onChange(v as BgPreset)}>
+      <Select.Trigger />
+      <Select.Content>
+        {BG_PRESETS.map((p) => (
+          <Select.Item key={p} value={p}>
+            {p[0].toUpperCase() + p.slice(1)}
+          </Select.Item>
+        ))}
+      </Select.Content>
+    </Select.Root>
+  );
 
   return (
-    <div className="app">
-      <header>
-        <h1>
-          PixelGate <span className="badge">unofficial</span>
-        </h1>
-        <p className="sub">
-          Design and push visuals to a{" "}
-          <a href="https://divoom.com/products/time-gate" target="_blank" rel="noopener noreferrer">
-            Divoom Times Gate
-          </a>
-          . Not affiliated with Divoom — use at your own risk. v{APP_VERSION}
-        </p>
-      </header>
+    <Container size="2" px="4" py="5">
+      <Flex direction="column" gap="4">
+        <Box>
+          <Flex align="center" gap="2">
+            <Heading size="7">PixelGate</Heading>
+            <Badge color="pink" variant="soft" radius="full">unofficial</Badge>
+          </Flex>
+          <Text size="2" color="gray">
+            Design and push visuals to a{" "}
+            <Link href="https://divoom.com/products/time-gate" target="_blank" rel="noopener noreferrer">
+              Divoom Times Gate
+            </Link>
+            . Not affiliated with Divoom — use at your own risk. v{APP_VERSION}
+          </Text>
+        </Box>
 
-      <section className="panel">
-        <h2>1. Connect</h2>
-        <div className="row">
-          <label>
-            Device IP
-            <input
-              value={cfg.deviceIp}
-              placeholder="192.168.x.x"
-              onChange={(e) => persist({ ...cfg, deviceIp: e.target.value })}
-            />
-          </label>
-          <label>
-            LocalToken
-            <input
-              value={cfg.localToken}
-              placeholder="from Divoom app"
-              onChange={(e) => persist({ ...cfg, localToken: e.target.value })}
-            />
-          </label>
-          <label>
-            Bridge port
-            <input
-              type="number"
-              value={cfg.bridgePort}
-              onChange={(e) =>
-                persist({ ...cfg, bridgePort: Number(e.target.value) || 7660 })
-              }
-            />
-          </label>
-        </div>
-        <div className="row">
-          <button onClick={checkBridge}>Check bridge</button>
-          <button onClick={runDiscover}>Discover device</button>
-          <button className="verify" onClick={verify} disabled={verifying}>
-            {verifying ? "Verifying…" : "Verify connection"}
-          </button>
-          <span className={bridge.ok ? "ok" : "bad"}>
-            {bridge.ok
-              ? `bridge up (v${bridge.version})`
-              : `bridge not detected — start it on your machine to push live.`}
-          </span>
-        </div>
-        {verifyMsg && (
-          <p className={verifyMsg.ok ? "msg ok" : "msg bad"}>{verifyMsg.msg}</p>
-        )}
-        <button className="link" onClick={() => setShowHelp((v) => !v)}>
-          {showHelp ? "Hide help" : "Where do I find my LocalToken?"}
-        </button>
-        {showHelp && (
-          <div className="help">
-            <p>
-              The LocalToken is a short number shown in the Divoom phone app. Follow
-              these three steps, then paste it into the LocalToken box above.
-            </p>
-            <div className="help-steps">
-              {[
-                { n: 1, img: "step1.jpg", cap: "Tap your Times Gate device" },
-                { n: 2, img: "step2.jpg", cap: "Open its Settings" },
-                { n: 3, img: "step3.jpg", cap: "Copy the Local Token" },
-              ].map((s) => (
-                <figure key={s.n}>
-                  <img src={`${import.meta.env.BASE_URL}onboarding/${s.img}`} alt={s.cap} />
-                  <figcaption>
-                    {s.n}. {s.cap}
-                  </figcaption>
-                </figure>
-              ))}
-            </div>
-          </div>
-        )}
-      </section>
-
-      <section className="panel">
-        <h2>2. Screens</h2>
-        <div className="screens">
-          {Array.from({ length: SCREEN_COUNT }, (_, i) => (
-            <button
-              key={i}
-              className={screens.includes(i) ? "screen on" : "screen"}
-              onClick={() => toggleScreen(i)}
-            >
-              {i + 1}
-            </button>
-          ))}
-          <button onClick={() => setScreens([0, 1, 2, 3, 4])}>All</button>
-        </div>
-      </section>
-
-      <section className="panel">
-        <h2>3. Template</h2>
-        <div className="templates">
-          {TEMPLATES.map((t) => (
-            <button
-              key={t.id}
-              className={template === t.id ? "tmpl on" : "tmpl"}
-              onClick={() => setTemplate(t.id)}
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
-
-        <div className="controls">
-          {template === "solid" && (
-            <label>
-              Colour
-              <input type="color" value={solidColor} onChange={(e) => setSolidColor(e.target.value)} />
+        {/* 1. Connect */}
+        <Card size="2">
+          <Heading size="3" mb="3">1 · Connect</Heading>
+          <Grid columns={{ initial: "1", xs: "3" }} gap="3" mb="3">
+            <label className="field">
+              <Text size="1" color="gray">Device IP</Text>
+              <TextField.Root value={cfg.deviceIp} placeholder="192.168.x.x"
+                onChange={(e) => persist({ ...cfg, deviceIp: e.target.value })} />
             </label>
+            <label className="field">
+              <Text size="1" color="gray">LocalToken</Text>
+              <TextField.Root value={cfg.localToken} placeholder="from Divoom app"
+                onChange={(e) => persist({ ...cfg, localToken: e.target.value })} />
+            </label>
+            <label className="field">
+              <Text size="1" color="gray">Bridge port</Text>
+              <TextField.Root type="number" value={String(cfg.bridgePort)}
+                onChange={(e) => persist({ ...cfg, bridgePort: Number(e.target.value) || 7660 })} />
+            </label>
+          </Grid>
+          <Flex gap="2" align="center" wrap="wrap">
+            <Button variant="soft" onClick={checkBridge}>Check bridge</Button>
+            <Button variant="soft" onClick={runDiscover}>Discover device</Button>
+            <Button variant="outline" onClick={verify} disabled={verifying}>
+              {verifying ? "Verifying…" : "Verify connection"}
+            </Button>
+            <Badge color={bridge.ok ? "green" : "gray"} variant="soft">
+              {bridge.ok ? `bridge up (v${bridge.version})` : "bridge not detected"}
+            </Badge>
+          </Flex>
+          {verifyMsg && <Msg m={verifyMsg} />}
+          <Box mt="2">
+            <Link href="#" onClick={(e) => { e.preventDefault(); setShowHelp((v) => !v); }}>
+              {showHelp ? "Hide help" : "Where do I find my LocalToken?"}
+            </Link>
+          </Box>
+          {showHelp && (
+            <Box mt="3">
+              <Text size="2" color="gray">
+                The LocalToken is a short number in the Divoom phone app. Follow these three steps, then paste it above.
+              </Text>
+              <Grid columns={{ initial: "1", xs: "3" }} gap="3" mt="2">
+                {[
+                  { n: 1, img: "step1.jpg", cap: "Tap your Times Gate device" },
+                  { n: 2, img: "step2.jpg", cap: "Open its Settings" },
+                  { n: 3, img: "step3.jpg", cap: "Copy the Local Token" },
+                ].map((s) => (
+                  <Box key={s.n}>
+                    <img src={`${import.meta.env.BASE_URL}onboarding/${s.img}`} alt={s.cap} className="help-img" />
+                    <Text size="1" color="gray" align="center" as="div" mt="1">{s.n}. {s.cap}</Text>
+                  </Box>
+                ))}
+              </Grid>
+            </Box>
           )}
-          {template === "digital" && (
-            <>
-              <label>
-                Colour
-                <input type="color" value={textColor} onChange={(e) => setTextColor(e.target.value)} />
-              </label>
-              <label>
-                Background
-                <select value={clockBg} onChange={(e) => setClockBg(e.target.value as BgPreset)}>
-                  <option value="dark">Dark</option>
-                  <option value="black">Black</option>
-                  <option value="navy">Navy</option>
-                  <option value="plum">Plum</option>
-                  <option value="white">White</option>
-                </select>
-              </label>
-              <label>
-                Size
-                <select value={clockBig ? "large" : "small"} onChange={(e) => setClockBig(e.target.value === "large")}>
-                  <option value="large">Large</option>
-                  <option value="small">Small</option>
-                </select>
-              </label>
-              <label className="check">
-                <input type="checkbox" checked={seconds} onChange={(e) => setSeconds(e.target.checked)} />
-                seconds (stacked below)
-              </label>
-              <label>
-                X {clockX}
-                <input type="range" min={0} max={100} value={clockX} onChange={(e) => setClockX(Number(e.target.value))} />
-              </label>
-              <label>
-                Y {clockY}
-                <input type="range" min={0} max={100} value={clockY} onChange={(e) => setClockY(Number(e.target.value))} />
-              </label>
-              <span className="hint">Ticks on-device — one send, no re-push. Nudge X/Y to centre.</span>
-            </>
-          )}
-          {template === "text" && (
-            <>
-              <label className="grow">
-                Message
-                <input value={textValue} onChange={(e) => setTextValue(e.target.value)} />
-              </label>
-              <label>
-                Colour
-                <input type="color" value={textColor} onChange={(e) => setTextColor(e.target.value)} />
-              </label>
-              <label>
-                Background
-                <select value={textBg} onChange={(e) => setTextBg(e.target.value as BgPreset)}>
-                  <option value="dark">Dark</option>
-                  <option value="black">Black</option>
-                  <option value="navy">Navy</option>
-                  <option value="plum">Plum</option>
-                  <option value="white">White</option>
-                </select>
-              </label>
-              <span className="hint">Scrolls on-device when longer than the screen. Ticks itself — no re-push.</span>
-            </>
-          )}
-          {template === "image" && (
-            <label>
-              Image file
-              <input
-                type="file"
-                accept="image/*"
-                onChange={async (e) => {
+        </Card>
+
+        {/* 2. Screens */}
+        <Card size="2">
+          <Heading size="3" mb="3">2 · Screens</Heading>
+          <Flex gap="2" wrap="wrap">
+            {Array.from({ length: SCREEN_COUNT }, (_, i) => (
+              <Button key={i} variant={screens.includes(i) ? "solid" : "surface"} onClick={() => toggleScreen(i)}
+                style={{ width: 44 }}>
+                {i + 1}
+              </Button>
+            ))}
+            <Button variant="soft" onClick={() => setScreens([0, 1, 2, 3, 4])}>All</Button>
+          </Flex>
+        </Card>
+
+        {/* 3. Display */}
+        <Card size="2">
+          <Heading size="3" mb="3">3 · Display</Heading>
+          <Flex direction="column" gap="3">
+            {GROUPS.map((grp) => (
+              <Box key={grp.label}>
+                <Text size="1" color="gray" weight="medium" as="div" mb="1">{grp.label}</Text>
+                <Flex gap="2" wrap="wrap">
+                  {grp.items.map((id) => (
+                    <Button key={id} variant={template === id ? "solid" : "surface"} onClick={() => setTemplate(id)}>
+                      {TEMPLATE_LABEL[id]}
+                    </Button>
+                  ))}
+                </Flex>
+              </Box>
+            ))}
+          </Flex>
+
+          <Separator size="4" my="3" />
+
+          <Flex gap="4" align="end" wrap="wrap">
+            {template === "solid" && <ColorField label="Colour" value={solidColor} onChange={setSolidColor} />}
+
+            {template === "digital" && (
+              <>
+                <ColorField label="Colour" value={textColor} onChange={setTextColor} />
+                <label className="field"><Text size="1" color="gray">Background</Text>{bgSelect(clockBg, setClockBg)}</label>
+                <label className="field">
+                  <Text size="1" color="gray">Size</Text>
+                  <Select.Root value={clockBig ? "large" : "small"} onValueChange={(v) => setClockBig(v === "large")}>
+                    <Select.Trigger />
+                    <Select.Content>
+                      <Select.Item value="large">Large</Select.Item>
+                      <Select.Item value="small">Small</Select.Item>
+                    </Select.Content>
+                  </Select.Root>
+                </label>
+                <Text as="label" size="2"><Flex gap="2" align="center"><Switch checked={seconds} onCheckedChange={setSeconds} />seconds (stacked)</Flex></Text>
+                <label className="field" style={{ minWidth: 150 }}>
+                  <Text size="1" color="gray">X · {clockX}</Text>
+                  <Slider value={[clockX]} min={0} max={100} onValueChange={(v) => setClockX(v[0])} />
+                </label>
+                <label className="field" style={{ minWidth: 150 }}>
+                  <Text size="1" color="gray">Y · {clockY}</Text>
+                  <Slider value={[clockY]} min={0} max={100} onValueChange={(v) => setClockY(v[0])} />
+                </label>
+              </>
+            )}
+
+            {template === "text" && (
+              <>
+                <label className="field" style={{ flex: 1, minWidth: 220 }}>
+                  <Text size="1" color="gray">Message</Text>
+                  <TextField.Root value={textValue} onChange={(e) => setTextValue(e.target.value)} />
+                </label>
+                <ColorField label="Colour" value={textColor} onChange={setTextColor} />
+                <label className="field"><Text size="1" color="gray">Background</Text>{bgSelect(textBg, setTextBg)}</label>
+              </>
+            )}
+
+            {template === "image" && (
+              <label className="field">
+                <Text size="1" color="gray">Image file</Text>
+                <input type="file" accept="image/*" onChange={async (e) => {
                   const f = e.target.files?.[0];
                   if (f) setImageCanvas(await imageFileToCanvas(f));
-                }}
-              />
-            </label>
-          )}
-          {template === "ball" && (
-            <>
-              <label className="check">
-                <input
-                  type="checkbox"
-                  checked={cradleRandom}
-                  onChange={(e) => setCradleRandom(e.target.checked)}
-                />
-                randomize (vary how many spheres swing)
+                }} />
               </label>
-              <span className="hint">
-                Pick <b>All</b> screens for one sphere per screen — a cradle across the whole device.
-              </span>
-            </>
-          )}
-          {isScores && (
-            <>
-              <label>
-                League
-                <select value={league} onChange={(e) => chooseLeague(e.target.value)}>
-                  {["US", "Soccer"].map((grp) => (
-                    <optgroup key={grp} label={grp}>
-                      {Object.values(LEAGUES)
-                        .filter((l) => l.group === grp)
-                        .map((l) => (
-                          <option key={l.id} value={l.id}>
-                            {l.name}
-                          </option>
-                        ))}
-                    </optgroup>
-                  ))}
-                </select>
-              </label>
-              <label className="grow">
-                Team
-                <select value={favTeam} onChange={(e) => chooseTeam(e.target.value)}>
-                  {LEAGUES[league].teams.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {t.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <button onClick={refreshScores}>Refresh</button>
-              <label className="check" title="Poll ESPN and re-push automatically — fast (~12s) while a game is live, slow (~7 min) otherwise.">
-                <input type="checkbox" checked={scoreAuto} onChange={(e) => setScoreAuto(e.target.checked)} />
-                auto-update (fast when live)
-              </label>
-              {game && (
-                <span className="hint">
-                  {homeFirst(LEAGUES[league])
-                    ? `${game.home.abbr} v ${game.away.abbr}`
-                    : `${game.away.abbr} @ ${game.home.abbr}`}{" "}
-                  ·{" "}
-                  {game.state === "pre" ? "upcoming" : game.state === "in" ? "LIVE" : "final"}
-                </span>
-              )}
-              {scoreStatus && (
-                <span className={scoreStatus.ok ? "livemsg" : "bad"}>{scoreStatus.msg}</span>
-              )}
-            </>
-          )}
-        </div>
-      </section>
-
-      <section className="panel preview-panel">
-        <h2>4. Preview & send</h2>
-        <div className="preview-wrap">
-          <canvas
-            ref={scoresPreviewRef}
-            width={640}
-            height={128}
-            className="preview-strip"
-            style={{ display: isScores ? "block" : "none" }}
-          />
-          <canvas
-            ref={previewRef}
-            width={128}
-            height={128}
-            className="preview"
-            style={{ display: isScores ? "none" : "block" }}
-          />
-          <div className="send-col">
-            <button className="send" disabled={busy || !screens.length} onClick={send}>
-              {busy ? "Sending…" : `Send to ${describeScreens(screens)}`}
-            </button>
-            {reply !== null && (
-              <p className={reply.ok ? "msg ok" : "msg bad"}>{reply.msg}</p>
             )}
-          </div>
-        </div>
-        {script && (
-          <div className="script">
-            <p>
-              Bridge not running — copy this script and run it locally
-              (<code>python pixelgate_send.py</code>):
-            </p>
-            <textarea readOnly value={script} rows={12} />
-          </div>
-        )}
-      </section>
 
-      <section className="panel">
-        <button className="link" onClick={() => setShowFaq((v) => !v)}>
-          {showFaq ? "Hide FAQ" : "FAQ"}
-        </button>
-        {showFaq && (
-          <div className="faq">
-            {FAQ.map((f) => (
-              <details key={f.q}>
-                <summary>{f.q}</summary>
-                <p>{f.a}</p>
-              </details>
-            ))}
-          </div>
-        )}
-      </section>
+            {template === "ball" && (
+              <>
+                <Text as="label" size="2"><Flex gap="2" align="center"><Switch checked={cradleRandom} onCheckedChange={setCradleRandom} />randomize spheres</Flex></Text>
+                <Text size="1" color="gray">Pick <b>All</b> screens for one sphere per screen — a cradle across the device.</Text>
+              </>
+            )}
 
-      <footer className="foot">
-        <a href={GITHUB_URL} target="_blank" rel="noopener noreferrer">
-          GitHub
-        </a>
-        <span>·</span>
-        <a href={`${GITHUB_URL}/blob/main/docs/ACKNOWLEDGEMENTS.md`} target="_blank" rel="noopener noreferrer">
-          Acknowledgements
-        </a>
-        <span>·</span>
-        <a href={`${GITHUB_URL}/blob/main/docs/DISCLAIMER.md`} target="_blank" rel="noopener noreferrer">
-          Disclaimer
-        </a>
-        <span className="foot-note">
-          Unofficial · not affiliated with Divoom · use at your own risk
-        </span>
-      </footer>
-    </div>
+            {isScores && (
+              <>
+                <label className="field">
+                  <Text size="1" color="gray">League</Text>
+                  <Select.Root value={league} onValueChange={chooseLeague}>
+                    <Select.Trigger />
+                    <Select.Content>
+                      {["US", "Soccer"].map((grp) => (
+                        <Select.Group key={grp}>
+                          <Select.Label>{grp}</Select.Label>
+                          {Object.values(LEAGUES).filter((l) => l.group === grp).map((l) => (
+                            <Select.Item key={l.id} value={l.id}>{l.name}</Select.Item>
+                          ))}
+                        </Select.Group>
+                      ))}
+                    </Select.Content>
+                  </Select.Root>
+                </label>
+                <label className="field" style={{ minWidth: 200 }}>
+                  <Text size="1" color="gray">Team</Text>
+                  <Select.Root value={favTeam} onValueChange={chooseTeam}>
+                    <Select.Trigger />
+                    <Select.Content>
+                      {LEAGUES[league].teams.map((t) => (
+                        <Select.Item key={t.id} value={t.id}>{t.name}</Select.Item>
+                      ))}
+                    </Select.Content>
+                  </Select.Root>
+                </label>
+                <Button variant="soft" onClick={refreshScores}>Refresh</Button>
+                <Text as="label" size="2"><Flex gap="2" align="center"><Switch checked={scoreAuto} onCheckedChange={setScoreAuto} />auto-update</Flex></Text>
+                {game && (
+                  <Badge color="gray" variant="soft">
+                    {homeFirst(LEAGUES[league]) ? `${game.home.abbr} v ${game.away.abbr}` : `${game.away.abbr} @ ${game.home.abbr}`}
+                    {" · "}{game.state === "pre" ? "upcoming" : game.state === "in" ? "LIVE" : "final"}
+                  </Badge>
+                )}
+                {scoreStatus && (
+                  <Text size="1" color={scoreStatus.ok ? "green" : "amber"}>{scoreStatus.msg}</Text>
+                )}
+              </>
+            )}
+          </Flex>
+        </Card>
+
+        {/* 4. Preview & send */}
+        <Card size="2">
+          <Heading size="3" mb="3">4 · Preview &amp; send</Heading>
+          <Flex gap="4" wrap="wrap" align="start">
+            {isScores ? (
+              <canvas ref={scoresPreviewRef} width={640} height={128} className="preview-strip" />
+            ) : (
+              <canvas ref={previewRef} width={128} height={128} className="preview" />
+            )}
+            <Box style={{ flex: 1, minWidth: 240 }}>
+              <Button size="3" style={{ width: "100%", maxWidth: 360 }} disabled={busy || !screens.length} onClick={send}>
+                {busy ? "Sending…" : `Send to ${describeScreens(screens)}`}
+              </Button>
+              {reply && <Msg m={reply} />}
+            </Box>
+          </Flex>
+          {script && (
+            <Box mt="3">
+              <Text size="2" color="gray">Bridge not running — copy this script and run it locally (<code>python pixelgate_send.py</code>):</Text>
+              <textarea readOnly value={script} rows={12} className="script-ta" />
+            </Box>
+          )}
+        </Card>
+
+        {/* What's new */}
+        <Card size="2">
+          <Flex justify="between" align="center">
+            <Link href="#" onClick={(e) => { e.preventDefault(); setShowChanges((v) => !v); }}>
+              {showChanges ? "Hide what's new" : "What's new"}
+            </Link>
+            <Link href={`${GITHUB_URL}/blob/main/CHANGELOG.md`} target="_blank" rel="noopener noreferrer" size="1">
+              full changelog →
+            </Link>
+          </Flex>
+          {showChanges && (
+            <Flex direction="column" gap="3" mt="3">
+              {CHANGES.map((c) => (
+                <Box key={c.v}>
+                  <Badge variant="soft" mb="1">v{c.v}</Badge>
+                  <ul className="changes">
+                    {c.notes.map((n, i) => (
+                      <li key={i}><Text size="2" color="gray">{n}</Text></li>
+                    ))}
+                  </ul>
+                </Box>
+              ))}
+            </Flex>
+          )}
+        </Card>
+
+        {/* FAQ */}
+        <Card size="2">
+          <Link href="#" onClick={(e) => { e.preventDefault(); setShowFaq((v) => !v); }}>
+            {showFaq ? "Hide FAQ" : "FAQ"}
+          </Link>
+          {showFaq && (
+            <Flex direction="column" gap="2" mt="3">
+              {FAQ.map((f) => (
+                <details key={f.q} className="faq-item">
+                  <summary>{f.q}</summary>
+                  <Text size="2" color="gray" as="p" mt="1">{f.a}</Text>
+                </details>
+              ))}
+            </Flex>
+          )}
+        </Card>
+
+        <Flex gap="3" justify="center" align="center" wrap="wrap" pb="4">
+          <Link href={GITHUB_URL} target="_blank" rel="noopener noreferrer">GitHub</Link>
+          <Text color="gray">·</Text>
+          <Link href={`${GITHUB_URL}/blob/main/docs/ACKNOWLEDGEMENTS.md`} target="_blank" rel="noopener noreferrer">Acknowledgements</Link>
+          <Text color="gray">·</Text>
+          <Link href={`${GITHUB_URL}/blob/main/docs/DISCLAIMER.md`} target="_blank" rel="noopener noreferrer">Disclaimer</Link>
+          <Text size="1" color="gray" style={{ flexBasis: "100%", textAlign: "center" }}>
+            Unofficial · not affiliated with Divoom · use at your own risk
+          </Text>
+        </Flex>
+      </Flex>
+    </Container>
   );
 }

@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.8.0 — 2026-07-11
+
+- **UI redesign with Radix Themes** — polished, accessible components (buttons,
+  selects, switches, sliders, cards) in a dark cyan theme.
+- Section 3 is now **"Display"**, with options grouped by category: Clock, Text,
+  Graphics, Live sports (no longer a flat "templates" row).
+- **On-page changelog** ("What's new") and FAQ, plus footer links to GitHub,
+  Acknowledgements and Disclaimer.
+
 ## 0.7.3 — 2026-07-11
 
 - On-page **FAQ** (collapsible) and a footer with GitHub / Acknowledgements /
