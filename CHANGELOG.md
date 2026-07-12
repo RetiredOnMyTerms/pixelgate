@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.1 — 2026-07-11
+
+- Fix preview layout: the wide NFL 5-screen strip no longer crushes the Send
+  button/status into unreadable slivers — controls now wrap below the strip.
+
 ## 0.5.0 — 2026-07-11
 
 - **NFL scoreboard widget** (first data-feed feature). Pick any of the 32 teams;

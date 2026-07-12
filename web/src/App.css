@@ -220,6 +220,7 @@ button:hover {
   display: flex;
   gap: 20px;
   align-items: flex-start;
+  flex-wrap: wrap;
 }
 
 .preview {
@@ -241,7 +242,8 @@ button:hover {
 }
 
 .send-col {
-  flex: 1;
+  flex: 1 1 240px;
+  min-width: 240px;
 }
 
 .send {
@@ -249,6 +251,7 @@ button:hover {
   color: #04121a;
   font-weight: 600;
   width: 100%;
+  max-width: 360px;
   padding: 12px;
 }
 

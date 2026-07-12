@@ -43,7 +43,7 @@ import {
   type NflTeam,
 } from "./lib/nfl";
 
-const APP_VERSION = "0.5.0";
+const APP_VERSION = "0.5.1";
 
 type TemplateId = "solid" | "digital" | "ball" | "image" | "text" | "nfl";
 const TEMPLATES: { id: TemplateId; label: string }[] = [
