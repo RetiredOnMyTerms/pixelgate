@@ -61,14 +61,19 @@ import {
   type Game,
 } from "./lib/sports";
 import {
+  BudgetError,
+  callsRemaining,
+  dataRefreshMs,
+  DISPLAY_TICK_MS,
   fetchFlight,
-  flightPollMs,
   isOver,
+  MONTHLY_BUDGET,
   renderFlightScreens,
+  shouldConfirmLanding,
   type FlightInfo,
 } from "./lib/flight";
 
-const APP_VERSION = "0.9.1";
+const APP_VERSION = "0.9.2";
 
 type TemplateId = "solid" | "digital" | "ball" | "image" | "text" | "scores" | "flight";
 const TEMPLATE_LABEL: Record<TemplateId, string> = {
@@ -240,6 +245,8 @@ export default function App() {
   const stripRef = useRef<HTMLCanvasElement>(null);
   const prevTemplate = useRef<TemplateId>("digital");
   const lastGood = useRef<Command[] | null>(null); // last non-flight push, for revert
+  const flightRef = useRef<FlightInfo | null>(null); // latest flight, read in loops
+  const lastFetchRef = useRef<{ code: string; at: number }>({ code: "", at: 0 });
 
   const persist = (next: Config) => {
     setCfg(next);
@@ -313,24 +320,41 @@ export default function App() {
     strip.forEach((s, i) => g.drawImage(s, i * 128, 0));
   }, [scoreScreens, flightScreens, template]);
 
-  // Fetch + render the tracked flight (preview and manual send).
+  useEffect(() => {
+    flightRef.current = flight;
+  }, [flight]);
+
+  const budgetNote = () => `${callsRemaining()}/${MONTHLY_BUDGET} API left`;
+
+  // Manual "Track": dedupe repeat clicks within 5 min (serve cached, no API call),
+  // guard the monthly budget, then fetch.
   const refreshFlight = useCallback(async () => {
     setFlightStatus(null);
     if (!asKey) return setFlightStatus({ ok: false, msg: "Enter your AviationStack API key first." });
     if (!flightCode) return setFlightStatus({ ok: false, msg: "Enter a flight number (e.g. DL903)." });
+    const lf = lastFetchRef.current;
+    const cached = flightRef.current;
+    if (cached && lf.code === flightCode && Date.now() - lf.at < 5 * 60_000) {
+      setFlightScreens(await renderFlightScreens(cached));
+      setFlightStatus({ ok: true, msg: `Using cached (${Math.round((Date.now() - lf.at) / 1000)}s ago) · ${budgetNote()}` });
+      return;
+    }
+    if (callsRemaining() <= 0)
+      return setFlightStatus({ ok: false, msg: `Monthly API limit reached (${MONTHLY_BUDGET}). Resets next month.` });
     try {
       const f = await fetchFlight(asKey, flightCode);
       if (!f) {
         setFlight(null);
         setFlightScreens([]);
-        setFlightStatus({ ok: false, msg: "Flight not found (free tier is real-time only — try an active/soon flight)." });
+        setFlightStatus({ ok: false, msg: `Flight not found (real-time only). ${budgetNote()}` });
         return;
       }
+      lastFetchRef.current = { code: flightCode, at: Date.now() };
       setFlight(f);
       setFlightScreens(await renderFlightScreens(f));
-      setFlightStatus({ ok: true, msg: `${f.dep.iata} → ${f.arr.iata} · ${f.status}` });
+      setFlightStatus({ ok: true, msg: `${f.dep.iata} → ${f.arr.iata} · ${f.status} · ${budgetNote()}` });
     } catch (e) {
-      setFlightStatus({ ok: false, msg: `AviationStack error: ${(e as Error).message}` });
+      setFlightStatus({ ok: false, msg: (e as Error).message });
     }
   }, [asKey, flightCode]);
 
@@ -478,12 +502,16 @@ export default function App() {
     };
   }, [scoreAuto, template, bridge.ok, cfg.deviceIp, cfg.localToken, cfg.bridgePort, league, favTeam]);
 
-  // Flight tracker polling: slow far from departure, faster near/during the
-  // flight; on landed/cancelled, revert to the previously-shown widget.
+  // Flight tracker loop. The DISPLAY re-renders every minute from cached data
+  // (recomputes the countdown — NO API call); the DATA is only re-fetched when
+  // stale per dataRefreshMs (respecting the 100/month cap) or to confirm a
+  // landing. On landed/cancelled, revert to the previously-shown widget.
   useEffect(() => {
     if (!(flightAuto && template === "flight" && bridge.ok && cfg.deviceIp && cfg.localToken && asKey && flightCode)) return;
     let stopped = false;
     let timer: number | undefined;
+    let current = flightRef.current;
+    let lastFetch = current ? lastFetchRef.current.at : 0;
     const push = async (canvases: HTMLCanvasElement[]) => {
       const cmds = (await sportsCommands(canvases)).map((c) => ({ ...c, LocalToken: Number(cfg.localToken) }));
       await pushSequence(cfg.bridgePort, cfg.deviceIp, cmds);
@@ -491,30 +519,43 @@ export default function App() {
     const tick = async () => {
       if (stopped) return;
       try {
-        const f = await fetchFlight(asKey, flightCode);
-        if (f) {
-          setFlight(f);
-          const sc = await renderFlightScreens(f);
+        const due =
+          current == null ||
+          Date.now() - lastFetch >= dataRefreshMs(current) ||
+          shouldConfirmLanding(current, lastFetch);
+        if (due && callsRemaining() > 0) {
+          const f = await fetchFlight(asKey, flightCode);
+          if (f) {
+            current = f;
+            lastFetch = Date.now();
+            lastFetchRef.current = { code: flightCode, at: lastFetch };
+            setFlight(f);
+          }
+        }
+        if (current) {
+          const sc = await renderFlightScreens(current); // recomputes countdown locally
           setFlightScreens(sc);
           await push(sc);
-          if (isOver(f)) {
-            setFlightStatus({ ok: true, msg: `${f.status} — reverting to previous widget` });
+          if (isOver(current)) {
+            setFlightStatus({ ok: true, msg: `${current.status} — reverting to previous widget` });
             setFlightAuto(false);
             if (lastGood.current) {
               const restore = lastGood.current.map((c) => ({ ...c, LocalToken: Number(cfg.localToken) }));
               window.setTimeout(() => pushSequence(cfg.bridgePort, cfg.deviceIp, restore), 8000);
             }
-            return; // stop tracking
+            return;
           }
-          setFlightStatus({ ok: true, msg: `Updated ${new Date().toLocaleTimeString()} · ${f.status}` });
-          const next = flightPollMs(f);
-          if (!stopped && next > 0) timer = window.setTimeout(tick, next);
-        } else if (!stopped) {
-          timer = window.setTimeout(tick, 5 * 60_000);
+          setFlightStatus({ ok: true, msg: `${current.status} · ${callsRemaining()}/${MONTHLY_BUDGET} API left` });
         }
-      } catch {
-        if (!stopped) timer = window.setTimeout(tick, 60_000);
+      } catch (e) {
+        if (e instanceof BudgetError) {
+          setFlightStatus({ ok: false, msg: e.message });
+          setFlightAuto(false);
+          return;
+        }
+        /* transient — try again next tick */
       }
+      if (!stopped) timer = window.setTimeout(tick, DISPLAY_TICK_MS);
     };
     tick();
     return () => {
@@ -829,17 +870,21 @@ export default function App() {
                     onChange={(e) => setCode(e.target.value)} />
                 </label>
                 <Button variant="soft" onClick={refreshFlight}>Track</Button>
-                <Text as="label" size="2" title="Poll AviationStack and re-push — slow far from departure, ~2 min near/during the flight (stays under the free 1-req/min limit). Reverts to your previous widget when the flight lands or is cancelled.">
+                <Text as="label" size="2" title="Keeps the on-device countdown live: re-renders every minute from cached data (no API call), and only re-checks AviationStack every ~30 min while active/near (slower far out) to respect the 100/month free cap. Reverts to your previous widget when the flight lands or is cancelled.">
                   <Flex gap="2" align="center"><Switch checked={flightAuto} onCheckedChange={setFlightAuto} />auto-update</Flex>
                 </Text>
                 {flight && (
                   <Badge color="gray" variant="soft">{flight.dep.iata} → {flight.arr.iata} · {flight.status}</Badge>
                 )}
+                <Badge color={callsRemaining() > 10 ? "green" : callsRemaining() > 0 ? "amber" : "red"} variant="soft">
+                  API {callsRemaining()}/{MONTHLY_BUDGET} left
+                </Badge>
                 {flightStatus && (
                   <Text size="1" color={flightStatus.ok ? "green" : "amber"}>{flightStatus.msg}</Text>
                 )}
                 <Text size="1" color="gray" style={{ flexBasis: "100%" }}>
-                  Free tier is real-time only (500 req/mo, 1/min). Your key stays in your browser.
+                  Free tier is real-time only, 100 requests/month. The live countdown ticks locally (no calls);
+                  data re-checks ~every 30 min while active. Your key stays in your browser.
                 </Text>
               </>
             )}

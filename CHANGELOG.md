@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.9.2 — 2026-07-12
+
+- Flight tracker respects AviationStack's free tier (100 requests/month):
+  - **Local countdown** — the on-device "time left" re-renders every minute from
+    cached data with NO API call; data is only re-fetched when stale.
+  - **Adaptive data refresh** — ~30 min while active/near the flight, 1 h within
+    3 h, 3 h far out; stops when landed.
+  - **Monthly budget guard** — counts calls per month, shows "API N/100 left",
+    and auto-stops at the cap.
+  - **Manual default + dedupe** — auto-update off by default; repeat Track clicks
+    within 5 min serve cached data. Flight lookup now costs one call (IATA vs ICAO
+    chosen by code), and a landing is confirmed with a single call near arrival.
+
 ## 0.9.1 — 2026-07-12
 
 - Fix flight tracker times. AviationStack tags times with a "+00:00" offset but
