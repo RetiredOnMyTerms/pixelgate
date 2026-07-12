@@ -93,6 +93,28 @@ export function renderDigital(
 }
 const C_MID = IMG_SIZE / 2;
 
+/** Approximate preview of the text/marquee overlay (device does the real scroll). */
+export function renderText(
+  text: string,
+  color: string,
+  bg: string,
+): HTMLCanvasElement {
+  const c = newCanvas();
+  const g = c.getContext("2d")!;
+  g.fillStyle = bg;
+  g.fillRect(0, 0, IMG_SIZE, IMG_SIZE);
+  g.fillStyle = color;
+  g.textAlign = "left";
+  g.textBaseline = "middle";
+  g.font = "bold 15px 'Consolas', monospace";
+  g.fillText(text || " ", 4, IMG_SIZE / 2);
+  // subtle marquee hint
+  g.fillStyle = "rgba(255,255,255,0.25)";
+  g.font = "9px system-ui, sans-serif";
+  g.fillText("scrolls on device →", 4, IMG_SIZE - 10);
+  return c;
+}
+
 /** Bouncing ball animation frames. */
 export function renderBall(
   frames = 30,

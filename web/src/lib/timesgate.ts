@@ -113,7 +113,10 @@ export function sendHttpText(opts: {
   const width = Math.max(17, Math.min(opts.width ?? 56, 63));
   return {
     Command: "Draw/SendHttpText",
+    // Firmware is inconsistent about the field name for the target screen:
+    // API docs say LcdIndex, but working apps (adiastra) use LcdId. Send both.
     LcdIndex: opts.lcdIndex,
+    LcdId: opts.lcdIndex,
     TextId: opts.textId ?? 1,
     x: opts.x ?? 0,
     y: opts.y ?? 52,
@@ -158,4 +161,69 @@ export function sendHttpItemList(opts: {
   };
   if (opts.backgroundGif) cmd.BackgroudGif = opts.backgroundGif;
   return cmd;
+}
+
+// Hosted solid background gifs (device fetches these; palette index 0 is an
+// unused sentinel so the solid colour isn't treated as transparent).
+export const BG_BASE = "https://pixelgate.pages.dev/bg/solid-";
+export type BgPreset = "dark" | "black" | "navy" | "plum" | "white";
+
+// Fonts that actually render on this firmware. Big built-in fonts (242/256/260…)
+// silently blank, so the "large" option tops out at font 90.
+const CLOCK_FONT = { small: 2, large: 90 } as const;
+
+/**
+ * On-device self-updating digital clock (ticks natively, no re-push).
+ * HH:MM on top; optional SS stacked smaller below. Position/size/colour are
+ * tunable because centring/align is unreliable on this firmware.
+ */
+export function buildDigitalClock(
+  screens: number | number[],
+  opts: {
+    color: string;
+    big: boolean;
+    seconds: boolean;
+    x: number;
+    y: number;
+    bg: BgPreset;
+  },
+): Command[] {
+  const list = typeof screens === "number" ? [screens] : screens;
+  const bgUrl = `${BG_BASE}${opts.bg}.gif`;
+  const font = opts.big ? CLOCK_FONT.large : CLOCK_FONT.small;
+  return list.map((s) => {
+    const items: ItemListItem[] = [
+      {
+        TextId: 1,
+        type: 5, // HH:MM
+        x: opts.x,
+        y: opts.y,
+        dir: 0,
+        font,
+        TextWidth: 128,
+        Textheight: 16,
+        speed: 100,
+        color: opts.color,
+        update_time: 1,
+        align: 0,
+      },
+    ];
+    if (opts.seconds) {
+      items.push({
+        TextId: 2,
+        type: 1, // seconds
+        x: opts.x + 17,
+        y: opts.y + 30,
+        dir: 0,
+        font: 2,
+        TextWidth: 60,
+        Textheight: 16,
+        speed: 100,
+        color: opts.color,
+        update_time: 1,
+        align: 0,
+      });
+    }
+    return sendHttpItemList({ lcdIndex: s, newFlag: 1, backgroundGif: bgUrl, items });
+  });
 }

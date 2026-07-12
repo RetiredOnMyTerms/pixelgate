@@ -4,13 +4,16 @@ import { loadConfig, saveConfig, type Config } from "./lib/store";
 import {
   detectBridge,
   discover,
+  friendly,
   generateScript,
   pushSequence,
+  verifyConnection,
   type BridgeStatus,
-  type DeviceReply,
+  type Friendly,
 } from "./lib/bridge";
 import {
   buildAnimation,
+  buildDigitalClock,
   canvasToJpegBase64,
   lcdMask,
   firstActive,
@@ -18,6 +21,7 @@ import {
   resetPicIdCounter,
   sendHttpText,
   SCREEN_COUNT,
+  type BgPreset,
   type Command,
 } from "./lib/timesgate";
 import {
@@ -26,9 +30,10 @@ import {
   renderClock,
   renderDigital,
   renderSolid,
+  renderText,
 } from "./lib/render";
 
-const APP_VERSION = "0.3.0";
+const APP_VERSION = "0.4.0";
 
 type TemplateId = "solid" | "clock" | "digital" | "ball" | "image" | "text";
 const TEMPLATES: { id: TemplateId; label: string }[] = [
@@ -44,16 +49,27 @@ async function framesToB64(canvases: HTMLCanvasElement[]): Promise<string[]> {
   return Promise.all(canvases.map((c) => canvasToJpegBase64(c)));
 }
 
+const BG_PRESET_HEX: Record<BgPreset, string> = {
+  dark: "#05070F",
+  black: "#000000",
+  navy: "#0A1030",
+  plum: "#1A081E",
+  white: "#F0F0F0",
+};
+
 export default function App() {
   const [cfg, setCfg] = useState<Config>(loadConfig());
   const [bridge, setBridge] = useState<BridgeStatus>({ ok: false, error: "not checked" });
   const [screens, setScreens] = useState<number[]>([0]);
   const [template, setTemplate] = useState<TemplateId>("clock");
   const [busy, setBusy] = useState(false);
-  const [reply, setReply] = useState<DeviceReply | string | null>(null);
+  const [reply, setReply] = useState<Friendly | null>(null);
   const [script, setScript] = useState<string | null>(null);
   const [live, setLive] = useState(false);
+  const [liveMsg, setLiveMsg] = useState<string | null>(null);
   const [showHelp, setShowHelp] = useState(false);
+  const [verifyMsg, setVerifyMsg] = useState<Friendly | null>(null);
+  const [verifying, setVerifying] = useState(false);
 
   // template params
   const [solidColor, setSolidColor] = useState("#00C8FF");
@@ -62,9 +78,13 @@ export default function App() {
   const [bgColor, setBgColor] = useState("#05070F");
   const [seconds, setSeconds] = useState(true);
   const [imageCanvas, setImageCanvas] = useState<HTMLCanvasElement | null>(null);
+  // digital clock (on-device) tuning
+  const [clockBig, setClockBig] = useState(true);
+  const [clockX, setClockX] = useState(39);
+  const [clockY, setClockY] = useState(32);
+  const [clockBg, setClockBg] = useState<BgPreset>("dark");
 
   const previewRef = useRef<HTMLCanvasElement>(null);
-  const liveTimer = useRef<number | null>(null);
 
   const persist = (next: Config) => {
     setCfg(next);
@@ -87,15 +107,20 @@ export default function App() {
       case "clock":
         return renderClock(new Date());
       case "digital":
-        return renderDigital(new Date(), { bg: bgColor, color: textColor, seconds });
+        return renderDigital(new Date(), { bg: BG_PRESET_HEX[clockBg], color: textColor, seconds });
       case "ball":
         return renderBall(30)[0];
       case "image":
         return imageCanvas;
       case "text":
-        return renderSolid(bgColor);
+        return renderText(textValue, textColor, bgColor);
     }
-  }, [template, solidColor, bgColor, textColor, seconds, imageCanvas]);
+  }, [template, solidColor, bgColor, textColor, textValue, seconds, imageCanvas, clockBg]);
+
+  // Only the analog clock uses re-push; digital self-updates on-device.
+  useEffect(() => {
+    if (template !== "clock") setLive(false);
+  }, [template]);
 
   // Repaint preview whenever inputs change.
   useEffect(() => {
@@ -115,6 +140,17 @@ export default function App() {
 
   // Build the command list to send for the current template.
   const buildCommands = useCallback(async (): Promise<Command[]> => {
+    // Digital clock is on-device self-updating (ItemList) — not a JPEG push.
+    if (template === "digital") {
+      return buildDigitalClock(screens, {
+        color: textColor,
+        big: clockBig,
+        seconds,
+        x: clockX,
+        y: clockY,
+        bg: clockBg,
+      });
+    }
     const cmds: Command[] = [resetHttpGifId()];
     resetPicIdCounter();
     if (template === "text") {
@@ -139,9 +175,6 @@ export default function App() {
       case "clock":
         canvases = [renderClock(new Date())];
         break;
-      case "digital":
-        canvases = [renderDigital(new Date(), { bg: bgColor, color: textColor, seconds })];
-        break;
       case "ball":
         canvases = renderBall(30);
         speed = 45;
@@ -156,47 +189,91 @@ export default function App() {
     const b64 = await framesToB64(canvases);
     cmds.push(...buildAnimation(screens, b64, speed));
     return cmds;
-  }, [template, screens, solidColor, bgColor, textColor, textValue, seconds, imageCanvas]);
+  }, [
+    template, screens, solidColor, bgColor, textColor, textValue, seconds,
+    imageCanvas, clockBig, clockX, clockY, clockBg,
+  ]);
+
+  // Core push, shared by the manual Send button and the live re-push tick.
+  const doPush = useCallback(async (): Promise<Friendly> => {
+    const cmds = await buildCommands();
+    if (!bridge.ok) {
+      setScript(generateScript(cfg.deviceIp, Number(cfg.localToken), cmds));
+      return {
+        ok: false,
+        msg: "The local bridge isn't running, so I can't push live. Copy the script below and run it, or start the bridge and try again.",
+      };
+    }
+    const withToken = cmds.map((c) => ({ ...c, LocalToken: Number(cfg.localToken) }));
+    const r = await pushSequence(cfg.bridgePort, cfg.deviceIp, withToken);
+    const label = screens.length > 1 ? `screens ${screens.join(", ")}` : `screen ${screens[0]}`;
+    return friendly(r, `Sent — ${label} updated. ✓`);
+  }, [cfg, bridge, buildCommands, screens]);
 
   const send = useCallback(async () => {
     setReply(null);
     setScript(null);
-    if (!cfg.deviceIp) {
-      setReply("Set your device IP first.");
-      return;
-    }
+    if (!cfg.deviceIp)
+      return setReply({ ok: false, msg: "Enter your device IP first (or click Discover)." });
+    if (!cfg.localToken)
+      return setReply({
+        ok: false,
+        msg: 'Enter your LocalToken first — see "Where do I find my LocalToken?"',
+      });
     setBusy(true);
     try {
-      const cmds = await buildCommands();
-      if (!bridge.ok) {
-        // No bridge -> offer the zero-install script instead.
-        setScript(generateScript(cfg.deviceIp, Number(cfg.localToken), cmds));
-        return;
-      }
-      const withToken = cmds.map((c) => ({ ...c, LocalToken: Number(cfg.localToken) }));
-      const r = await pushSequence(cfg.bridgePort, cfg.deviceIp, withToken);
-      setReply(r);
-    } catch (e) {
-      setReply((e as Error).message);
+      setReply(await doPush());
+    } catch {
+      setReply({
+        ok: false,
+        msg: "Couldn't reach the local bridge — make sure it's running on your machine.",
+      });
     } finally {
       setBusy(false);
     }
-  }, [cfg, bridge, buildCommands]);
+  }, [cfg, doPush]);
 
-  // Live tick for clocks: re-push each second.
+  const verify = useCallback(async () => {
+    setVerifyMsg(null);
+    if (!cfg.deviceIp) return setVerifyMsg({ ok: false, msg: "Enter your device IP first." });
+    if (!cfg.localToken) return setVerifyMsg({ ok: false, msg: "Enter your LocalToken first." });
+    if (!bridge.ok)
+      return setVerifyMsg({ ok: false, msg: "Start the local bridge first, then verify." });
+    setVerifying(true);
+    try {
+      setVerifyMsg(await verifyConnection(cfg.bridgePort, cfg.deviceIp, Number(cfg.localToken)));
+    } finally {
+      setVerifying(false);
+    }
+  }, [cfg, bridge]);
+
+  // Live tick for clocks: re-push each second WITHOUT blocking the UI.
+  // Runs quietly (no busy state, no reply spam); a self-scheduling loop that
+  // waits for each push to finish so ticks never pile up.
   useEffect(() => {
-    if (liveTimer.current) {
-      clearInterval(liveTimer.current);
-      liveTimer.current = null;
+    const isClock = template === "clock";
+    if (!(live && isClock && bridge.ok && cfg.deviceIp && cfg.localToken)) {
+      setLiveMsg(null);
+      return;
     }
-    const isClock = template === "clock" || template === "digital";
-    if (live && isClock && bridge.ok && cfg.deviceIp) {
-      liveTimer.current = window.setInterval(send, 1000);
-    }
-    return () => {
-      if (liveTimer.current) clearInterval(liveTimer.current);
+    let stopped = false;
+    let timer: number | undefined;
+    const tick = async () => {
+      if (stopped) return;
+      try {
+        await doPush();
+        if (!stopped) setLiveMsg(`live • last update ${new Date().toLocaleTimeString()}`);
+      } catch {
+        if (!stopped) setLiveMsg("live • push failed (bridge running?)");
+      }
+      if (!stopped) timer = window.setTimeout(tick, 1000);
     };
-  }, [live, template, bridge.ok, cfg.deviceIp, send]);
+    tick();
+    return () => {
+      stopped = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, [live, template, bridge.ok, cfg.deviceIp, cfg.localToken, doPush]);
 
   const toggleScreen = (i: number) =>
     setScreens((prev) =>
@@ -204,7 +281,9 @@ export default function App() {
     );
 
   const runDiscover = async () => {
-    setReply(null);
+    setVerifyMsg(null);
+    if (!bridge.ok)
+      return setVerifyMsg({ ok: false, msg: "Start the local bridge first, then Discover." });
     try {
       const d = (await discover(cfg.bridgePort)) as {
         DeviceList?: { DevicePrivateIP: string; DeviceName: string }[];
@@ -212,12 +291,12 @@ export default function App() {
       const found = d.DeviceList?.[0];
       if (found) {
         persist({ ...cfg, deviceIp: found.DevicePrivateIP });
-        setReply(`Found ${found.DeviceName} at ${found.DevicePrivateIP}`);
+        setVerifyMsg({ ok: true, msg: `Found "${found.DeviceName}" at ${found.DevicePrivateIP}. ✓` });
       } else {
-        setReply("No devices found on this LAN.");
+        setVerifyMsg({ ok: false, msg: "No Times Gate found on this network." });
       }
-    } catch (e) {
-      setReply(`Discover failed (bridge running?): ${(e as Error).message}`);
+    } catch {
+      setVerifyMsg({ ok: false, msg: "Discover failed — is the local bridge running?" });
     }
   };
 
@@ -266,12 +345,18 @@ export default function App() {
         <div className="row">
           <button onClick={checkBridge}>Check bridge</button>
           <button onClick={runDiscover}>Discover device</button>
+          <button className="verify" onClick={verify} disabled={verifying}>
+            {verifying ? "Verifying…" : "Verify connection"}
+          </button>
           <span className={bridge.ok ? "ok" : "bad"}>
             {bridge.ok
               ? `bridge up (v${bridge.version})`
-              : `bridge not detected — ${bridge.error}. Live push disabled; you can still generate a script.`}
+              : `bridge not detected — start it on your machine to push live.`}
           </span>
         </div>
+        {verifyMsg && (
+          <p className={verifyMsg.ok ? "msg ok" : "msg bad"}>{verifyMsg.msg}</p>
+        )}
         <button className="link" onClick={() => setShowHelp((v) => !v)}>
           {showHelp ? "Hide help" : "Where do I find my LocalToken?"}
         </button>
@@ -339,17 +424,39 @@ export default function App() {
           {template === "digital" && (
             <>
               <label>
-                Text
+                Colour
                 <input type="color" value={textColor} onChange={(e) => setTextColor(e.target.value)} />
               </label>
               <label>
                 Background
-                <input type="color" value={bgColor} onChange={(e) => setBgColor(e.target.value)} />
+                <select value={clockBg} onChange={(e) => setClockBg(e.target.value as BgPreset)}>
+                  <option value="dark">Dark</option>
+                  <option value="black">Black</option>
+                  <option value="navy">Navy</option>
+                  <option value="plum">Plum</option>
+                  <option value="white">White</option>
+                </select>
+              </label>
+              <label>
+                Size
+                <select value={clockBig ? "large" : "small"} onChange={(e) => setClockBig(e.target.value === "large")}>
+                  <option value="large">Large</option>
+                  <option value="small">Small</option>
+                </select>
               </label>
               <label className="check">
                 <input type="checkbox" checked={seconds} onChange={(e) => setSeconds(e.target.checked)} />
-                seconds
+                seconds (stacked below)
               </label>
+              <label>
+                X {clockX}
+                <input type="range" min={0} max={100} value={clockX} onChange={(e) => setClockX(Number(e.target.value))} />
+              </label>
+              <label>
+                Y {clockY}
+                <input type="range" min={0} max={100} value={clockY} onChange={(e) => setClockY(Number(e.target.value))} />
+              </label>
+              <span className="hint">Ticks on-device — one send, no re-push. Nudge X/Y to centre.</span>
             </>
           )}
           {template === "text" && (
@@ -381,12 +488,13 @@ export default function App() {
               />
             </label>
           )}
-          {(template === "clock" || template === "digital") && (
-            <label className="check">
+          {template === "clock" && (
+            <label className="check" title="Analog clock is a snapshot. Enable to re-push every second so the hands move. Runs in the background — you can keep using the app.">
               <input type="checkbox" checked={live} onChange={(e) => setLive(e.target.checked)} />
-              live (re-push every second)
+              live tick (re-push so the hands move)
             </label>
           )}
+          {liveMsg && <span className="livemsg">{liveMsg}</span>}
         </div>
       </section>
 
@@ -399,9 +507,7 @@ export default function App() {
               {busy ? "Sending…" : `Send to screen ${screens.join(",")}`}
             </button>
             {reply !== null && (
-              <pre className="reply">
-                {typeof reply === "string" ? reply : JSON.stringify(reply)}
-              </pre>
+              <p className={reply.ok ? "msg ok" : "msg bad"}>{reply.msg}</p>
             )}
           </div>
         </div>

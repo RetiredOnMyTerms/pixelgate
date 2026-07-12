@@ -106,6 +106,26 @@ input[type="color"] {
   width: 48px;
 }
 
+select {
+  background: #0d1220;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--text);
+  padding: 8px 10px;
+  font: inherit;
+}
+
+input[type="range"] {
+  width: 120px;
+}
+
+.hint {
+  align-self: center;
+  font-size: 11px;
+  color: var(--muted);
+  max-width: 200px;
+}
+
 button {
   background: #1d2740;
   border: 1px solid var(--line);
@@ -157,6 +177,39 @@ button:hover {
   color: #fbbf24;
   align-self: center;
   font-size: 12px;
+}
+
+.verify {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.livemsg {
+  align-self: center;
+  font-size: 12px;
+  color: #4ade80;
+}
+.verify:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.msg {
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin: 10px 0 0;
+  font-size: 13px;
+  border: 1px solid var(--line);
+}
+.msg.ok {
+  background: rgba(74, 222, 128, 0.1);
+  border-color: rgba(74, 222, 128, 0.4);
+  color: #86efac;
+}
+.msg.bad {
+  background: rgba(251, 191, 36, 0.08);
+  border-color: rgba(251, 191, 36, 0.4);
+  color: #fcd34d;
 }
 
 .preview-wrap {

@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.4.0 — 2026-07-11
+
+- **On-device self-updating digital clock.** The Digital clock template now uses
+  `Draw/SendHttpItemList` with a hosted solid background gif, so the time ticks
+  natively on the device from a single send — no per-second re-push, no flicker,
+  no UI lock. `HH:MM` with optional stacked seconds; tunable colour, size,
+  background preset, and X/Y position (on-device `align`/centring is unreliable,
+  so position is explicit).
+- Solid background gifs are self-hosted (`web/public/bg/solid-*.gif`) with palette
+  index 0 as an unused sentinel — works around the device treating palette index 0
+  as transparent. Drops the external dummyimage.com dependency.
+- **Verify connection** button — sends `Device/GetDeviceTime` and reports plainly
+  whether the device answered and the LocalToken is valid.
+- **Friendly messages** everywhere: raw `{"error_code":0}` etc. replaced with
+  human sentences (success, token rejected, device unreachable, bridge not running…).
+- **Live re-push no longer locks the app.** Off by default; when enabled for the
+  analog clock it runs as a quiet background loop (no busy button, no reply spam)
+  with a "live • last update" status. Digital clock no longer needs it.
+- `Draw/SendHttpText` now sends both `LcdId` and `LcdIndex` (firmware is
+  inconsistent about which names the target screen).
+
 ## 0.3.0 — 2026-07-11
 
 - In-app onboarding: a "Where do I find my LocalToken?" help panel in the Connect
