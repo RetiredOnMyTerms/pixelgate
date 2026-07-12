@@ -194,12 +194,12 @@ export function buildScrollingText(
           x: 0,
           y: opts.y ?? 52,
           dir: 0,
-          font: 2, // general font with letters (numeral fonts have no A-Z)
+          font: 4, // general font with letters that scrolls on overflow (verified)
           TextWidth: 128, // full-width scroll region
           Textheight: 16,
-          speed: opts.speed ?? 30,
+          speed: opts.speed ?? 20,
           color: opts.color,
-          update_time: 60,
+          update_time: 5, // seconds between polls; also the first-fetch delay
           TextString: url,
         },
       ],
@@ -213,56 +213,55 @@ const CLOCK_FONT = { small: 2, large: 90 } as const;
 
 /**
  * On-device self-updating digital clock (ticks natively, no re-push).
- * HH:MM on top; optional SS stacked smaller below. Position/size/colour are
- * tunable because centring/align is unreliable on this firmware.
+ * Uses type 6 (HH:MM:SS) as a single item: because it includes seconds it
+ * repaints every second, so it's visible immediately. (type 5 HH:MM only
+ * repaints when the minute changes, so it stays blank until the next minute —
+ * hence we always show seconds.) font 90 is the largest that renders on this
+ * firmware; position is explicit because on-device centring/align is unreliable.
  */
 export function buildDigitalClock(
   screens: number | number[],
   opts: {
     color: string;
     big: boolean;
-    seconds: boolean;
     x: number;
     y: number;
     bg: BgPreset;
+    stacked: boolean;
   },
 ): Command[] {
   const list = typeof screens === "number" ? [screens] : screens;
   const bgUrl = `${BG_BASE}${opts.bg}.gif`;
   const font = opts.big ? CLOCK_FONT.large : CLOCK_FONT.small;
-  return list.map((s) => {
-    const items: ItemListItem[] = [
-      {
-        TextId: 1,
-        type: 5, // HH:MM
-        x: opts.x,
-        y: opts.y,
-        dir: 0,
-        font,
-        TextWidth: 128,
-        Textheight: 16,
-        speed: 100,
-        color: opts.color,
-        update_time: 1,
-        align: 0,
-      },
-    ];
-    if (opts.seconds) {
-      items.push({
-        TextId: 2,
-        type: 1, // seconds
-        x: opts.x + 17,
-        y: opts.y + 30,
-        dir: 0,
-        font: 2,
-        TextWidth: 60,
-        Textheight: 16,
-        speed: 100,
-        color: opts.color,
-        update_time: 1,
-        align: 0,
-      });
+  const cmds: Command[] = [];
+  for (const s of list) {
+    if (opts.stacked) {
+      // HH:MM big on top, seconds smaller below. HH:MM (type 5) only repaints on
+      // minute change, so it's blank until the next minute — we force an
+      // immediate repaint with a NewFlag:0 re-send of that item.
+      const hhmm: ItemListItem = {
+        TextId: 1, type: 5, x: opts.x, y: opts.y, dir: 0, font,
+        TextWidth: 100, Textheight: 16, speed: 100, color: opts.color, align: 0,
+      };
+      const ss: ItemListItem = {
+        TextId: 2, type: 1, x: opts.x + 17, y: opts.y + 30, dir: 0, font: 2,
+        TextWidth: 60, Textheight: 16, speed: 100, color: opts.color, align: 0,
+      };
+      cmds.push(sendHttpItemList({ lcdIndex: s, newFlag: 1, backgroundGif: bgUrl, items: [hhmm, ss] }));
+      cmds.push(sendHttpItemList({ lcdIndex: s, newFlag: 0, items: [hhmm] }));
+    } else {
+      // HH:MM:SS single line — includes seconds so it repaints every second and
+      // is visible immediately.
+      cmds.push(
+        sendHttpItemList({
+          lcdIndex: s, newFlag: 1, backgroundGif: bgUrl,
+          items: [{
+            TextId: 1, type: 6, x: opts.x, y: opts.y, dir: 0, font,
+            TextWidth: 120, Textheight: 16, speed: 100, color: opts.color, align: 0,
+          }],
+        }),
+      );
     }
-    return sendHttpItemList({ lcdIndex: s, newFlag: 1, backgroundGif: bgUrl, items });
-  });
+  }
+  return cmds;
 }

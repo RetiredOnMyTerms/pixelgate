@@ -132,7 +132,7 @@ export default function App() {
       return buildDigitalClock(screens, {
         color: textColor,
         big: clockBig,
-        seconds,
+        stacked: seconds,
         x: clockX,
         y: clockY,
         bg: clockBg,
