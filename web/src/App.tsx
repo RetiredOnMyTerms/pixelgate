@@ -83,7 +83,7 @@ import {
   type ProviderId,
 } from "./lib/flight";
 
-const APP_VERSION = "0.15.0";
+const APP_VERSION = "0.15.1";
 
 type TemplateId =
   | "solid" | "digital" | "ball" | "image" | "text" | "scores" | "flight" | "weather" | "quote"

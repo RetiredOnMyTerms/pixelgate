@@ -265,56 +265,60 @@ export function createStarship(opts: { speed?: number; loop?: boolean }): Effect
     const hull = "#C7D0E0";
     const dark = "#8A94AA";
     const glow = "#4FB0FF";
+    // Moving RIGHT: saucer leads (front/right); the two nacelles sit clearly to
+    // the LEFT of the saucer so both stay visible (the previous version drew the
+    // saucer over the lower nacelle, hiding it and looking like a blob).
+    const nyTop = cy - 25;
+    const nyBot = cy - 13;
     // engine trail behind the nacelles (to the left)
-    for (let i = 0; i < 22; i++) {
-      const tx = x + 6 - i * 3;
-      const a = (1 - i / 22) * 0.5;
+    for (let i = 0; i < 20; i++) {
+      const tx = x - i * 3;
+      const a = (1 - i / 20) * 0.5;
       g.fillStyle = `rgba(79,176,255,${a.toFixed(3)})`;
-      g.fillRect(tx, cy - 20, 3, 3);
-      g.fillRect(tx, cy - 8, 3, 3);
+      g.fillRect(tx, nyTop - 1, 3, 2);
+      g.fillRect(tx, nyBot - 1, 3, 2);
     }
-    // two warp nacelles (elongated, trailing left) with bright front caps
-    for (const ny of [cy - 21, cy - 7]) {
-      g.fillStyle = dark;
-      g.beginPath();
-      g.ellipse(x + SHIP_W * 0.42, ny, 30, 4, 0, 0, Math.PI * 2);
-      g.fill();
-      g.fillStyle = glow;
-      g.beginPath();
-      g.ellipse(x + SHIP_W * 0.72, ny, 4, 4, 0, 0, Math.PI * 2);
-      g.fill();
-    }
-    // pylons down to the engineering hull
+    // engineering / secondary hull — behind and below
+    g.fillStyle = hull;
+    g.beginPath();
+    g.ellipse(x + 40, cy + 11, 22, 8, 0, 0, Math.PI * 2);
+    g.fill();
+    // pylons from each nacelle down to the engineering hull
     g.strokeStyle = dark;
     g.lineWidth = 3;
     g.beginPath();
-    g.moveTo(x + SHIP_W * 0.42, cy - 21);
-    g.lineTo(x + SHIP_W * 0.5, cy + 8);
-    g.moveTo(x + SHIP_W * 0.42, cy - 7);
-    g.lineTo(x + SHIP_W * 0.5, cy + 8);
+    g.moveTo(x + 34, nyTop);
+    g.lineTo(x + 44, cy + 6);
+    g.moveTo(x + 34, nyBot);
+    g.lineTo(x + 46, cy + 6);
     g.stroke();
-    // engineering / secondary hull
-    g.fillStyle = hull;
-    g.beginPath();
-    g.ellipse(x + SHIP_W * 0.5, cy + 9, 24, 8, 0, 0, Math.PI * 2);
-    g.fill();
-    // neck
+    // two warp nacelles (elongated, trailing left) with bright front (right) caps
+    for (const ny of [nyTop, nyBot]) {
+      g.fillStyle = dark;
+      g.beginPath();
+      g.ellipse(x + 26, ny, 24, 3.5, 0, 0, Math.PI * 2);
+      g.fill();
+      g.fillStyle = glow;
+      g.beginPath();
+      g.ellipse(x + 48, ny, 3.5, 3.5, 0, 0, Math.PI * 2);
+      g.fill();
+    }
+    // neck connecting the saucer to the engineering hull
     g.fillStyle = dark;
     g.beginPath();
-    g.moveTo(x + SHIP_W * 0.66, cy - 2);
-    g.lineTo(x + SHIP_W * 0.82, cy - 6);
-    g.lineTo(x + SHIP_W * 0.78, cy + 6);
-    g.lineTo(x + SHIP_W * 0.6, cy + 6);
+    g.moveTo(x + 66, cy - 2);
+    g.lineTo(x + 56, cy + 6);
+    g.lineTo(x + 68, cy + 6);
     g.closePath();
     g.fill();
-    // saucer (leading, right) + bridge dome
+    // saucer (leading, right) + bridge dome — drawn last, clear of the nacelles
     g.fillStyle = hull;
     g.beginPath();
-    g.ellipse(x + SHIP_W * 0.86, cy - 5, 26, 9, 0, 0, Math.PI * 2);
+    g.ellipse(x + 80, cy - 4, 28, 10, 0, 0, Math.PI * 2);
     g.fill();
     g.fillStyle = dark;
     g.beginPath();
-    g.ellipse(x + SHIP_W * 0.9, cy - 9, 8, 4, 0, 0, Math.PI * 2);
+    g.ellipse(x + 84, cy - 9, 8, 4, 0, 0, Math.PI * 2);
     g.fill();
   }
 

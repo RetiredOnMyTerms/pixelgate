@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.15.1 — 2026-07-12
+
+- Fix: the Starship flyby drew the saucer over the lower warp nacelle, hiding it
+  so the ship looked like a blob. Redrawn so both nacelles sit clear of the
+  saucer — the twin-nacelle silhouette now reads correctly.
+
 ## 0.15.0 — 2026-07-12
 
 - **On-page comments & feedback** via GitHub Discussions (giscus), plus
