@@ -83,7 +83,7 @@ import {
   type ProviderId,
 } from "./lib/flight";
 
-const APP_VERSION = "0.14.1";
+const APP_VERSION = "0.15.0";
 
 type TemplateId =
   | "solid" | "digital" | "ball" | "image" | "text" | "scores" | "flight" | "weather" | "quote"
@@ -160,6 +160,13 @@ const FAQ: { q: string; a: string }[] = [
 
 // User-facing highlights (full technical log lives in CHANGELOG.md on GitHub).
 const CHANGES: { v: string; notes: string[] }[] = [
+  {
+    v: "0.15",
+    notes: [
+      "Comments & feedback — leave a comment right on the page (via GitHub Discussions), or open a discussion / bug report.",
+      "Fresh landing header, and search-engine + link-preview metadata.",
+    ],
+  },
   {
     v: "0.14",
     notes: [
@@ -253,6 +260,37 @@ function Msg({ m }: { m: Friendly }) {
       <Callout.Text>{m.msg}</Callout.Text>
     </Callout.Root>
   );
+}
+
+// On-page comments, backed by GitHub Discussions via giscus. Requires the giscus
+// GitHub App to be installed on the repo (one-time). Loads the giscus client once.
+function GiscusComments() {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || el.querySelector("script,iframe")) return;
+    const s = document.createElement("script");
+    s.src = "https://giscus.app/client.js";
+    s.async = true;
+    s.crossOrigin = "anonymous";
+    const attrs: Record<string, string> = {
+      "data-repo": "RetiredOnMyTerms/pixelgate",
+      "data-repo-id": "R_kgDOTVzu3A",
+      "data-category": "Announcements",
+      "data-category-id": "DIC_kwDOTVzu3M4DBDef",
+      "data-mapping": "pathname",
+      "data-strict": "0",
+      "data-reactions-enabled": "1",
+      "data-emit-metadata": "0",
+      "data-input-position": "top",
+      "data-theme": "dark_dimmed",
+      "data-lang": "en",
+      "data-loading": "lazy",
+    };
+    for (const [k, v] of Object.entries(attrs)) s.setAttribute(k, v);
+    el.appendChild(s);
+  }, []);
+  return <div ref={ref} />;
 }
 
 export default function App() {
@@ -1015,16 +1053,18 @@ export default function App() {
     <Container size="2" px="4" py="5">
       <Flex direction="column" gap="4">
         <Box>
-          <Flex align="center" gap="2">
-            <Heading size="7">PixelGate</Heading>
-            <Badge color="pink" variant="soft" radius="full">unofficial</Badge>
-          </Flex>
-          <Text size="2" color="gray">
-            Design and push visuals to a{" "}
+          <Heading size="8" mb="1">PixelGate</Heading>
+          <Text size="4" as="p" style={{ color: "var(--gray-12)", maxWidth: 620 }}>
+            Turn your{" "}
             <Link href="https://divoom.com/products/time-gate" target="_blank" rel="noopener noreferrer">
               Divoom Times Gate
-            </Link>
-            . Not affiliated with Divoom — use at your own risk. v{APP_VERSION}
+            </Link>{" "}
+            into a live five-screen dashboard.
+          </Text>
+          <Text size="2" color="gray" as="p" mt="1" style={{ maxWidth: 620 }}>
+            Clocks, weather, sports scoreboards, a flight tracker, quote of the day, and animated
+            effects like Matrix rain and a starship flyby — better templates than the mobile app,
+            straight from your browser.
           </Text>
         </Box>
 
@@ -1503,14 +1543,29 @@ export default function App() {
           )}
         </Card>
 
+        {/* Comments & feedback */}
+        <Card size="2">
+          <Heading size="3" mb="1">Comments &amp; feedback</Heading>
+          <Text size="2" color="gray" as="p" mb="3">
+            Ideas, bugs, or just want to say hi? Comment below (signs in with GitHub), start a{" "}
+            <Link href={`${GITHUB_URL}/discussions`} target="_blank" rel="noopener noreferrer">discussion</Link>, or{" "}
+            <Link href={`${GITHUB_URL}/issues/new/choose`} target="_blank" rel="noopener noreferrer">report a bug</Link>.
+          </Text>
+          <GiscusComments />
+        </Card>
+
         <Flex gap="3" justify="center" align="center" wrap="wrap" pb="4">
+          <Link href={`${GITHUB_URL}/discussions`} target="_blank" rel="noopener noreferrer">💬 Feedback</Link>
+          <Text color="gray">·</Text>
+          <Link href={`${GITHUB_URL}/issues/new/choose`} target="_blank" rel="noopener noreferrer">🐛 Report a bug</Link>
+          <Text color="gray">·</Text>
           <Link href={GITHUB_URL} target="_blank" rel="noopener noreferrer">GitHub</Link>
           <Text color="gray">·</Text>
           <Link href={`${GITHUB_URL}/blob/main/docs/ACKNOWLEDGEMENTS.md`} target="_blank" rel="noopener noreferrer">Acknowledgements</Link>
           <Text color="gray">·</Text>
           <Link href={`${GITHUB_URL}/blob/main/docs/DISCLAIMER.md`} target="_blank" rel="noopener noreferrer">Disclaimer</Link>
           <Text size="1" color="gray" style={{ flexBasis: "100%", textAlign: "center" }}>
-            Unofficial · not affiliated with Divoom · use at your own risk
+            PixelGate v{APP_VERSION} · Unofficial · not affiliated with Divoom · use at your own risk
           </Text>
         </Flex>
       </Flex>

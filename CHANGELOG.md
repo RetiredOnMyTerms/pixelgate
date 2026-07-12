@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.15.0 — 2026-07-12
+
+- **On-page comments & feedback** via GitHub Discussions (giscus), plus
+  "Feedback" (Discussions) and "Report a bug" (Issues) links in the footer — no
+  email needed. (Requires the giscus GitHub App installed on the repo.)
+- **SEO / link previews**: real `<title>` + meta description, canonical, Open
+  Graph + Twitter Card tags, a 1200×630 `og.png`, `robots.txt`, `sitemap.xml`,
+  and `WebApplication` JSON-LD structured data.
+- **Refreshed landing header** — a clearer, more compelling intro; the
+  "unofficial / use at your own risk" line moved to the footer with the version.
+- Repo cleanup: removed unused Vite scaffold assets (`react.svg`, `vite.svg`,
+  `hero.png`, `icons.svg`) and stray local build logs.
+
 ## 0.14.1 — 2026-07-12
 
 - Fix: long single-word city names were clipped (beginning/end letters cut off)

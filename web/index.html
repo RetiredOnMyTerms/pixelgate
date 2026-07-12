@@ -2,12 +2,70 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>web</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="canonical" href="https://pixelgate.pages.dev/" />
+    <meta name="robots" content="index,follow" />
+    <meta name="theme-color" content="#0b0e14" />
+
+    <title>PixelGate — Web control app for the Divoom Times Gate (unofficial)</title>
+    <meta
+      name="description"
+      content="PixelGate is a free, unofficial web app to control a Divoom Times Gate's five 128x128 screens — clocks, weather, sports scoreboards, a flight tracker, quote of the day, and animated effects like Matrix rain and a starship flyby. No install beyond a small local bridge."
+    />
+    <meta
+      name="keywords"
+      content="Divoom Times Gate, Divoom, Times Gate, pixel display, LED display control, weather widget, sports scoreboard, flight tracker, quote of the day, Matrix rain, PixelGate"
+    />
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="PixelGate" />
+    <meta property="og:title" content="PixelGate — control your Divoom Times Gate from the web" />
+    <meta
+      property="og:description"
+      content="Free, unofficial web app for the Divoom Times Gate: clocks, weather, sports, flight tracker, quote of the day, and animated effects across all five screens."
+    />
+    <meta property="og:url" content="https://pixelgate.pages.dev/" />
+    <meta property="og:image" content="https://pixelgate.pages.dev/og.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="PixelGate — web control app for the Divoom Times Gate" />
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="PixelGate — control your Divoom Times Gate from the web" />
+    <meta
+      name="twitter:description"
+      content="Free, unofficial web app for the Divoom Times Gate: clocks, weather, sports, flight tracker, quotes, and animated effects across all five screens."
+    />
+    <meta name="twitter:image" content="https://pixelgate.pages.dev/og.png" />
+
+    <!-- Structured data -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": "PixelGate",
+        "url": "https://pixelgate.pages.dev/",
+        "description": "Free, unofficial web app to control a Divoom Times Gate's five 128x128 screens with clocks, weather, sports scoreboards, a flight tracker, quote of the day, and animated visual effects.",
+        "applicationCategory": "UtilitiesApplication",
+        "operatingSystem": "Web browser (with a small local bridge for the device)",
+        "browserRequirements": "Requires JavaScript",
+        "isAccessibleForFree": true,
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+        "license": "https://opensource.org/licenses/MIT"
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>
+    <noscript>
+      PixelGate is a free, unofficial web app for controlling a Divoom Times Gate's five 128x128
+      pixel screens — clocks, weather, sports scoreboards, a flight tracker, quote of the day, and
+      animated effects. It needs JavaScript enabled. Source and feedback:
+      https://github.com/RetiredOnMyTerms/pixelgate
+    </noscript>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
