@@ -684,3 +684,54 @@ export function renderWeather(w: WeatherData): HTMLCanvasElement {
   g.fillText(lo, startX + wHi + gap, 114);
   return c;
 }
+
+// One 128x128 tile with a small caption on top and a big value centred below.
+function statTile(caption: string, value: string, valueColor: string, capColor = "#9AA4BD"): HTMLCanvasElement {
+  const c = newCanvas();
+  const g = c.getContext("2d")!;
+  g.fillStyle = "#000000";
+  g.fillRect(0, 0, IMG_SIZE, IMG_SIZE);
+  g.textAlign = "center";
+  g.textBaseline = "middle";
+  g.fillStyle = capColor;
+  g.font = "bold 16px system-ui, sans-serif";
+  g.fillText(caption, IMG_SIZE / 2, 24);
+  g.fillStyle = valueColor;
+  fitFont(g, value, 118, 62);
+  g.fillText(value, IMG_SIZE / 2, 78);
+  return c;
+}
+
+/** Weather spread across all 5 screens: 0 city · 1 condition icon + word ·
+ * 2 temperature (°F and °C) · 3 today's high · 4 today's low. */
+export function renderWeatherSpread(w: WeatherData): HTMLCanvasElement[] {
+  // 0: city
+  const city = renderWrapped(w.city, { maxFont: 34, minFont: 14, color: "#FFFFFF" });
+
+  // 1: big condition icon + description word
+  const icon = newCanvas();
+  const ig = icon.getContext("2d")!;
+  ig.fillStyle = "#000000";
+  ig.fillRect(0, 0, IMG_SIZE, IMG_SIZE);
+  ig.save();
+  ig.translate(IMG_SIZE / 2, 54);
+  ig.scale(2.3, 2.3);
+  drawWxIcon(ig, 0, 0, w.icon);
+  ig.restore();
+  ig.textAlign = "center";
+  ig.textBaseline = "middle";
+  ig.fillStyle = WX_COLOR[w.icon];
+  fitFont(ig, w.desc, 120, 22);
+  ig.fillText(w.desc, IMG_SIZE / 2, 108);
+
+  // 2: temperature — °F big, °C under
+  const temp = renderTwoLine(`${w.tempF}°F`, `${w.tempC}°C`, {
+    topColor: "#FFFFFF", bottomColor: "#9AA4BD", topSize: 46, bottomSize: 34,
+  });
+
+  // 3 / 4: today's high / low
+  const hi = statTile("HIGH", `${w.hiF}°`, "#FF9E4A");
+  const lo = statTile("LOW", `${w.loF}°`, "#6FC7FF");
+
+  return [city, icon, temp, hi, lo];
+}

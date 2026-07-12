@@ -53,6 +53,7 @@ import {
   renderSolid,
   renderText,
   renderWeather,
+  renderWeatherSpread,
   renderWrapped,
 } from "./lib/render";
 import { fetchWeather, type WeatherData } from "./lib/weather";
@@ -82,7 +83,7 @@ import {
   type ProviderId,
 } from "./lib/flight";
 
-const APP_VERSION = "0.13.0";
+const APP_VERSION = "0.14.0";
 
 type TemplateId =
   | "solid" | "digital" | "ball" | "image" | "text" | "scores" | "flight" | "weather" | "quote"
@@ -159,6 +160,12 @@ const FAQ: { q: string; a: string }[] = [
 
 // User-facing highlights (full technical log lives in CHANGELOG.md on GitHub).
 const CHANGES: { v: string; notes: string[] }[] = [
+  {
+    v: "0.14",
+    notes: [
+      "Weather can now spread across all 5 screens — city / condition / temperature / high / low, one big tile per screen (or keep the single-tile layout).",
+    ],
+  },
   {
     v: "0.13",
     notes: [
@@ -302,6 +309,10 @@ export default function App() {
   const [weatherCity, setWeatherCity] = useState<string>(() => localStorage.getItem("pixelgate.weatherCity") || "");
   const [weather, setWeather] = useState<WeatherData | null>(null);
   const [weatherCanvas, setWeatherCanvas] = useState<HTMLCanvasElement | null>(null);
+  const [weatherSpread, setWeatherSpread] = useState<HTMLCanvasElement[]>([]);
+  const [weatherLayout, setWeatherLayout] = useState<"single" | "spread">(
+    () => (localStorage.getItem("pixelgate.weatherLayout") as "single" | "spread") || "single",
+  );
   const [weatherStatus, setWeatherStatus] = useState<Friendly | null>(null);
 
   // quote of the day
@@ -419,10 +430,11 @@ export default function App() {
       (template === "rain" && rainSpans === "all") ||
       (template === "crawl" && crawlSpans === "all");
     const strip = template === "flight" ? flightScreens
+      : template === "weather" ? weatherSpread
       : eff && effAllLocal ? effectPreview
       : scoreScreens;
     strip.forEach((s, i) => s && g.drawImage(s, i * 128, 0));
-  }, [scoreScreens, flightScreens, effectPreview, template, rainSpans, crawlSpans]);
+  }, [scoreScreens, flightScreens, weatherSpread, weatherLayout, effectPreview, template, rainSpans, crawlSpans]);
 
   useEffect(() => {
     flightRef.current = flight;
@@ -482,6 +494,7 @@ export default function App() {
       }
       setWeather(w);
       setWeatherCanvas(renderWeather(w));
+      setWeatherSpread(renderWeatherSpread(w));
       setWeatherStatus({ ok: true, msg: `${w.city}: ${w.tempF}°F / ${w.tempC}°C · ${w.desc}` });
     } catch (e) {
       setWeatherStatus({ ok: false, msg: (e as Error).message });
@@ -489,9 +502,11 @@ export default function App() {
   }, [weatherCity]);
 
   useEffect(() => {
-    if (template === "weather" && weatherCity.trim()) refreshWeather();
+    if (template !== "weather") return;
+    if (weatherLayout === "spread") setScreens([0, 1, 2, 3, 4]); // spread always uses all 5
+    if (weatherCity.trim()) refreshWeather();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [template]);
+  }, [template, weatherLayout]);
 
   // Quote of the day — fetched once (changes daily); no fast polling.
   const refreshQuote = useCallback(async () => {
@@ -682,7 +697,7 @@ export default function App() {
       case "text":
         return renderText(textValue, textColor, BG_PRESET_HEX[textBg]);
       case "weather":
-        return weatherCanvas;
+        return weatherLayout === "spread" ? null : weatherCanvas;
       case "quote":
         return quote
           ? renderWrapped(`“${quote.text}”`, { footer: `— ${quote.author}`, maxFont: 17, footerColor: "#FFD227" })
@@ -697,7 +712,7 @@ export default function App() {
       case "flight":
         return null;
     }
-  }, [template, solidColor, textColor, textValue, seconds, imageCanvas, clockBg, textBg, weatherCanvas, quote, effectPreview, rainSpans, crawlSpans]);
+  }, [template, solidColor, textColor, textValue, seconds, imageCanvas, clockBg, textBg, weatherCanvas, weatherLayout, quote, effectPreview, rainSpans, crawlSpans]);
 
   useEffect(() => {
     let cancelled = false;
@@ -754,6 +769,15 @@ export default function App() {
       }
       return sportsCommands(sc);
     }
+    if (template === "weather" && weatherLayout === "spread") {
+      let sc = weatherSpread;
+      if (sc.length !== SCREEN_COUNT) {
+        const w = weather ?? (await fetchWeather(weatherCity));
+        if (!w) throw new Error("no weather data — enter a city and press Refresh");
+        sc = renderWeatherSpread(w);
+      }
+      return sportsCommands(sc); // 5 distinct tiles, one per screen (atomic CommandList)
+    }
     const cmds: Command[] = [resetHttpGifId()];
     resetPicIdCounter();
     if (template === "ball") {
@@ -803,7 +827,7 @@ export default function App() {
     imageCanvas, clockBig, clockX, clockY, clockBg, textBg, cradleRandom,
     scoreScreens, game, league, favTeam,
     flightScreens, flight, flightProvider, asKey, flightCode,
-    weatherCanvas, weather, quote,
+    weatherCanvas, weather, weatherSpread, weatherLayout, weatherCity, quote,
   ]);
 
   useEffect(() => {
@@ -967,12 +991,13 @@ export default function App() {
   const isFlight = template === "flight";
   const isWeather = template === "weather";
   const isQuote = template === "quote";
+  const weatherIsSpread = isWeather && weatherLayout === "spread";
   const isEffect = EFFECT_IDS.includes(template);
   const effAll =
     template === "starship" ||
     (template === "rain" && rainSpans === "all") ||
     (template === "crawl" && crawlSpans === "all");
-  const isStrip = isScores || isFlight || (isEffect && effAll);
+  const isStrip = isScores || isFlight || weatherIsSpread || (isEffect && effAll);
   const bgSelect = (value: BgPreset, onChange: (v: BgPreset) => void) => (
     <Select.Root value={value} onValueChange={(v) => onChange(v as BgPreset)}>
       <Select.Trigger />
@@ -1263,6 +1288,23 @@ export default function App() {
                   <TextField.Root value={weatherCity} placeholder="e.g. Seattle"
                     onChange={(e) => setCity(e.target.value)}
                     onKeyDown={(e) => { if (e.key === "Enter") refreshWeather(); }} />
+                </label>
+                <label className="field">
+                  <Text size="1" color="gray">Layout</Text>
+                  <Select.Root
+                    value={weatherLayout}
+                    onValueChange={(v) => {
+                      setWeatherLayout(v as "single" | "spread");
+                      localStorage.setItem("pixelgate.weatherLayout", v);
+                      if (v === "spread") setScreens([0, 1, 2, 3, 4]);
+                    }}
+                  >
+                    <Select.Trigger />
+                    <Select.Content>
+                      <Select.Item value="single">Single tile</Select.Item>
+                      <Select.Item value="spread">Spread across 5</Select.Item>
+                    </Select.Content>
+                  </Select.Root>
                 </label>
                 <Button variant="soft" onClick={refreshWeather}>Refresh</Button>
                 {weather && (

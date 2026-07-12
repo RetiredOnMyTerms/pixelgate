@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.14.0 — 2026-07-12
+
+- **Weather "spread across 5 screens" layout**. A new Layout selector on the
+  weather widget: keep the single-tile card, or spread the reading across all five
+  screens — **S0** city · **S1** condition icon + word · **S2** temperature (°F and
+  °C) · **S3** today's high · **S4** today's low — each as one big, glanceable tile,
+  pushed to the five screens in one atomic `Draw/CommandList`. Demonstrates how any
+  "send to all 5" visual can be split into five distinct per-screen tiles rather
+  than one image stretched across them.
+
 ## 0.13.0 — 2026-07-12
 
 - **Quote of the Day widget** (Data group). Shows today's quote from **ZenQuotes**
