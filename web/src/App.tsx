@@ -83,7 +83,7 @@ import {
   type ProviderId,
 } from "./lib/flight";
 
-const APP_VERSION = "0.15.1";
+const APP_VERSION = "0.15.2";
 
 type TemplateId =
   | "solid" | "digital" | "ball" | "image" | "text" | "scores" | "flight" | "weather" | "quote"
@@ -587,7 +587,7 @@ export default function App() {
       const idx = Math.floor(runner.loopLen * frac);
       row = frames[Math.min(idx, frames.length - 1)] ?? frames[0];
     } else {
-      runner.nextBatch(28); // warm a stream effect so content is on screen
+      runner.nextBatch(15); // warm a stream effect so content is mid-screen
       row = runner.nextBatch(1)[0];
     }
     if (row) setEffectPreview(row);

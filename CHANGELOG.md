@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.15.2 — 2026-07-12
+
+- Fix: the Starship flyby didn't flow smoothly from screen 0 to 4. It was pushed
+  as five independent per-screen animations that each looped on the device and
+  drifted out of phase, breaking the motion at the screen boundaries. It now
+  streams one global frame at a time to all five screens in a single
+  `Draw/CommandList`, so every screen shows the same frame and the ship stays
+  synced across the whole row. (This effect refreshes continuously while it runs.)
+
 ## 0.15.1 — 2026-07-12
 
 - Fix: the Starship flyby drew the saucer over the lower warp nacelle, hiding it

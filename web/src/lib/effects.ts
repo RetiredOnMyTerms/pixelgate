@@ -322,38 +322,49 @@ export function createStarship(opts: { speed?: number; loop?: boolean }): Effect
     g.fill();
   }
 
-  function frameAt(f: number): HTMLCanvasElement {
+  function frame(shipX: number, t: number): HTMLCanvasElement {
     const c = canvas(width, W);
     const g = c.getContext("2d")!;
     g.fillStyle = "#000000";
     g.fillRect(0, 0, width, W);
     for (const s of stars) {
-      const tw = 0.5 + 0.5 * Math.sin((2 * Math.PI * f) / F + s.phase);
+      const tw = 0.5 + 0.5 * Math.sin(t * 0.2 + s.phase);
       const v = Math.round((s.big ? 180 : 120) + 75 * tw);
       g.fillStyle = `rgb(${v},${v},${v})`;
       const sz = s.big ? 2 : 1;
       g.fillRect(s.x, s.y, sz, sz);
     }
-    drawShip(g, -SHIP_W + f * dx, 64);
+    drawShip(g, shipX, 64);
     return c;
   }
 
-  let frame = 0;
-  return {
+  // STREAM one global frame at a time to all 5 screens (in one CommandList), so
+  // every screen shows the exact same frame — the ship stays synced across the
+  // whole row and flows 0->4. (Looping 5 independent per-screen animations lets
+  // them drift out of phase, which breaks the flow at the screen boundaries.)
+  let shipX = -SHIP_W;
+  let t = 0;
+  const runner: Effect = {
     spans: "all",
-    mode: "loop",
-    loopLen: F,
+    mode: "stream",
+    loopLen: 1,
     picSpeed,
     loopForever: opts.loop ?? true,
     runCount: 1,
     done: false,
     nextBatch(n: number) {
       const out: HTMLCanvasElement[][] = [];
-      for (let i = 0; i < n; i++) {
-        out.push(slice5(frameAt(frame % F)));
-        frame++;
+      for (let i = 0; i < n && !runner.done; i++) {
+        t++;
+        shipX += dx;
+        if (shipX > width + SHIP_W) {
+          if (opts.loop ?? true) shipX = -SHIP_W;
+          else { runner.done = true; break; }
+        }
+        out.push(slice5(frame(shipX, t)));
       }
       return out;
     },
   };
+  return runner;
 }
