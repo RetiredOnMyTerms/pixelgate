@@ -68,7 +68,7 @@ import {
   type FlightInfo,
 } from "./lib/flight";
 
-const APP_VERSION = "0.9.0";
+const APP_VERSION = "0.9.1";
 
 type TemplateId = "solid" | "digital" | "ball" | "image" | "text" | "scores" | "flight";
 const TEMPLATE_LABEL: Record<TemplateId, string> = {

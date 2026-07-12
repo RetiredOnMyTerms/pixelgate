@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.9.1 — 2026-07-12
+
+- Fix flight tracker times. AviationStack tags times with a "+00:00" offset but
+  the digits are the airport's LOCAL wall-clock time — the app was converting
+  them again. Now shows the wall-clock time as-is (e.g. Dep 8:23p / Arr 12:06a)
+  and computes the countdown by interpreting the digits in the airport timezone.
+
 ## 0.9.0 — 2026-07-11
 
 - **Flight tracker widget**. Enter a flight number (and your own free AviationStack
