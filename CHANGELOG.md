@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.5.0 — 2026-07-11
+
+- **NFL scoreboard widget** (first data-feed feature). Pick any of the 32 teams;
+  the app pulls that team's current/next game from ESPN's free public API
+  (client-side, CORS-open, no key) and drives all 5 screens: away logo, away
+  score, quarter + down & distance, home score, home logo. Home/away placement
+  follows the actual game, not the favourite team.
+- Live game -> scores + "Q3" / "3rd & 7"; no game -> next fixture weekday / date /
+  kickoff (local time) with both team logos; graceful "no data" fallback.
+- **Logo -> pixel-art pipeline**: fetch team logo, downscale + quantize (bold,
+  high-contrast) + nearest-neighbour upscale to 128, cached per logo.
+- Auto-update polling: fast (~12s) while a game is live, slow (~7 min) when idle,
+  detected from ESPN game state. All 5 screens pushed atomically (Draw/CommandList).
+- 32-team roster is hardcoded (ESPN's /teams LIST endpoint fails browser CORS,
+  while scoreboard, per-team, and logo endpoints work).
+
 ## 0.4.4 — 2026-07-11
 
 - Newton's cradle "All screens": all 5 screens' frames are sent in one atomic

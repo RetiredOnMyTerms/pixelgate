@@ -231,6 +231,15 @@ button:hover {
   background: #000;
 }
 
+.preview-strip {
+  width: 100%;
+  max-width: 640px;
+  image-rendering: pixelated;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #000;
+}
+
 .send-col {
   flex: 1;
 }

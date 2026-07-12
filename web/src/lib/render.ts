@@ -275,6 +275,122 @@ export function renderCradleScreen(
   return out;
 }
 
+function fitFont(
+  g: CanvasRenderingContext2D,
+  text: string,
+  maxPx: number,
+  startSize: number,
+  weight = "bold",
+) {
+  let size = startSize;
+  g.font = `${weight} ${size}px system-ui, sans-serif`;
+  while (size > 8 && g.measureText(text).width > maxPx) {
+    size -= 3;
+    g.font = `${weight} ${size}px system-ui, sans-serif`;
+  }
+}
+
+/** One big auto-fit line, centred (scores, abbreviations). */
+export function renderBigText(
+  text: string,
+  opts: { color?: string; bg?: string; size?: number } = {},
+): HTMLCanvasElement {
+  const c = newCanvas();
+  const g = c.getContext("2d")!;
+  g.fillStyle = opts.bg ?? "#000000";
+  g.fillRect(0, 0, IMG_SIZE, IMG_SIZE);
+  g.fillStyle = opts.color ?? "#FFFFFF";
+  g.textAlign = "center";
+  g.textBaseline = "middle";
+  fitFont(g, text || " ", 118, opts.size ?? 84);
+  g.fillText(text || " ", IMG_SIZE / 2, IMG_SIZE / 2 + 2);
+  return c;
+}
+
+/** Two stacked centred lines (e.g. "Q3" / "3rd & 7", or date / time). */
+export function renderTwoLine(
+  top: string,
+  bottom: string,
+  opts: { color?: string; bg?: string; topColor?: string; bottomColor?: string; topSize?: number; bottomSize?: number } = {},
+): HTMLCanvasElement {
+  const c = newCanvas();
+  const g = c.getContext("2d")!;
+  g.fillStyle = opts.bg ?? "#000000";
+  g.fillRect(0, 0, IMG_SIZE, IMG_SIZE);
+  g.textAlign = "center";
+  g.textBaseline = "middle";
+  g.fillStyle = opts.topColor ?? opts.color ?? "#FFFFFF";
+  fitFont(g, top || " ", 118, opts.topSize ?? 46);
+  g.fillText(top || " ", IMG_SIZE / 2, 40);
+  g.fillStyle = opts.bottomColor ?? opts.color ?? "#9AA4BD";
+  fitFont(g, bottom || " ", 122, opts.bottomSize ?? 34);
+  g.fillText(bottom || " ", IMG_SIZE / 2, 90);
+  return c;
+}
+
+/** Load an image with CORS enabled so the canvas stays exportable (ESPN sends
+ * Access-Control-Allow-Origin: *). */
+export function loadImage(url: string): Promise<HTMLImageElement> {
+  return new Promise((res, rej) => {
+    const im = new Image();
+    im.crossOrigin = "anonymous";
+    im.onload = () => res(im);
+    im.onerror = () => rej(new Error(`image load failed: ${url}`));
+    im.src = url;
+  });
+}
+
+/**
+ * Render a (team) logo as bold 128x128 pixel art: fit onto a small grid, quantize
+ * colours + boost contrast for a poster look, then nearest-neighbour upscale so
+ * the pixels stay chunky. Logos are simple, so this reads well on the LCD.
+ */
+export function renderLogoPixelArt(
+  img: HTMLImageElement,
+  opts: { bg?: string; grid?: number; contrast?: number } = {},
+): HTMLCanvasElement {
+  const grid = opts.grid ?? 44; // pixel resolution before upscale
+  const bg = opts.bg ?? "#FFFFFF";
+  const contrast = opts.contrast ?? 1.25;
+
+  const small = document.createElement("canvas");
+  small.width = grid;
+  small.height = grid;
+  const sg = small.getContext("2d")!;
+  sg.fillStyle = bg;
+  sg.fillRect(0, 0, grid, grid);
+
+  const pad = grid * 0.07;
+  const box = grid - pad * 2;
+  const scale = Math.min(box / img.width, box / img.height);
+  const w = img.width * scale;
+  const h = img.height * scale;
+  sg.imageSmoothingEnabled = true;
+  sg.imageSmoothingQuality = "high";
+  sg.drawImage(img, (grid - w) / 2, (grid - h) / 2, w, h);
+
+  // Bold quantize (5 levels/channel) + contrast on the small pixels.
+  const id = sg.getImageData(0, 0, grid, grid);
+  const p = id.data;
+  const q = (v: number) => {
+    v = (v - 128) * contrast + 128;
+    v = Math.max(0, Math.min(255, v));
+    return Math.min(255, Math.round(v / 64) * 64);
+  };
+  for (let i = 0; i < p.length; i += 4) {
+    p[i] = q(p[i]);
+    p[i + 1] = q(p[i + 1]);
+    p[i + 2] = q(p[i + 2]);
+  }
+  sg.putImageData(id, 0, 0);
+
+  const c = newCanvas();
+  const g = c.getContext("2d")!;
+  g.imageSmoothingEnabled = false; // nearest-neighbour -> chunky pixels
+  g.drawImage(small, 0, 0, IMG_SIZE, IMG_SIZE);
+  return c;
+}
+
 /** Draw an uploaded image cover-fit into 128x128. */
 export async function imageFileToCanvas(file: File): Promise<HTMLCanvasElement> {
   const url = URL.createObjectURL(file);
