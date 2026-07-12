@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.7.0 — 2026-07-11
+
+- **9 more leagues** in the Sports scoreboard: NBA, NHL, and soccer — MLS,
+  Premier League, EFL Championship, Ligue 1, La Liga, Bundesliga, Serie A. The
+  League dropdown is grouped (US / Soccer). Rosters are baked in from ESPN
+  (`rosters.ts`, ~230 teams; regenerate on soccer promotion/relegation).
+- Per-sport middle screen: quarter+clock (NBA), period+clock (NHL, OT/SO aware),
+  match minute/HT (soccer), plus the existing NFL down&distance and MLB inning.
+- **Soccer lists the home team first** (left); US leagues list the away team
+  first — reflected in both the 5-screen layout and the matchup label.
+- Logo resilience: `nextEvent` games expose `team.logos[]` (not `team.logo`);
+  resolve both, and a missing/failed logo shows a blank tile instead of blanking
+  the whole widget.
+
 ## 0.6.0 — 2026-07-11
 
 - **MLB scoreboard** + generic multi-league core. The NFL widget was refactored

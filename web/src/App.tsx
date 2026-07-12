@@ -36,13 +36,14 @@ import {
 } from "./lib/render";
 import {
   fetchTeamGame,
+  homeFirst,
   LEAGUES,
   pollIntervalMs,
   renderScreens,
   type Game,
 } from "./lib/sports";
 
-const APP_VERSION = "0.6.0";
+const APP_VERSION = "0.7.0";
 
 type TemplateId = "solid" | "digital" | "ball" | "image" | "text" | "scores";
 const TEMPLATES: { id: TemplateId; label: string }[] = [
@@ -647,10 +648,16 @@ export default function App() {
               <label>
                 League
                 <select value={league} onChange={(e) => chooseLeague(e.target.value)}>
-                  {Object.values(LEAGUES).map((l) => (
-                    <option key={l.id} value={l.id}>
-                      {l.name}
-                    </option>
+                  {["US", "Soccer"].map((grp) => (
+                    <optgroup key={grp} label={grp}>
+                      {Object.values(LEAGUES)
+                        .filter((l) => l.group === grp)
+                        .map((l) => (
+                          <option key={l.id} value={l.id}>
+                            {l.name}
+                          </option>
+                        ))}
+                    </optgroup>
                   ))}
                 </select>
               </label>
@@ -671,7 +678,10 @@ export default function App() {
               </label>
               {game && (
                 <span className="hint">
-                  {game.away.abbr} @ {game.home.abbr} ·{" "}
+                  {homeFirst(LEAGUES[league])
+                    ? `${game.home.abbr} v ${game.away.abbr}`
+                    : `${game.away.abbr} @ ${game.home.abbr}`}{" "}
+                  ·{" "}
                   {game.state === "pre" ? "upcoming" : game.state === "in" ? "LIVE" : "final"}
                 </span>
               )}
