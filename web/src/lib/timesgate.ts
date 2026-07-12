@@ -143,7 +143,7 @@ export type ItemListItem = {
   speed?: number;
   color?: string;
   update_time?: number;
-  align?: 1 | 3 | 5;
+  align?: number; // firmware uses 0-based here (0/1/2), not the 1/3/5 of SendHttpText
 };
 
 /** Self-updating item list. NewFlag 1 = set background + items; BackgroudGif URL required then. */
