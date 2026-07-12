@@ -166,9 +166,17 @@ export function sendHttpItemList(opts: {
 // Hosted solid background gifs (device fetches these; palette index 0 is an
 // unused sentinel so the solid colour isn't treated as transparent).
 export const BG_BASE = "https://pixelgate.pages.dev/bg/solid-";
-// Pages Function that echoes ?t=<text> as {"DispData": text} for type-23 net-text.
+// Pages Function that decodes ?b=<base64url> and returns it as net-text DispData.
 export const ECHO_BASE = "https://pixelgate.pages.dev/api/echo";
 export type BgPreset = "dark" | "black" | "navy" | "plum" | "white";
+
+/** base64url (no padding) — URL-safe, avoids the %20/special-char fetch error. */
+function b64url(s: string): string {
+  return btoa(unescape(encodeURIComponent(s)))
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
+}
 
 /**
  * Scrolling text / marquee via on-device SendHttpItemList type 23 (net-text).
@@ -181,7 +189,11 @@ export function buildScrollingText(
 ): Command[] {
   const list = typeof screens === "number" ? [screens] : screens;
   const bgUrl = `${BG_BASE}${opts.bg}.gif`;
-  const url = `${ECHO_BASE}?t=${encodeURIComponent(opts.text)}`;
+  // The device's net-text fetcher errors on encoded spaces (%20) and special
+  // chars in the query string. base64url-encode the message so the URL is pure
+  // [A-Za-z0-9-_]; the echo Function decodes it and repeats it so it scrolls.
+  const raw = (opts.text.trim() || " ").slice(0, 80);
+  const url = `${ECHO_BASE}?b=${b64url(raw)}`;
   return list.map((s) =>
     sendHttpItemList({
       lcdIndex: s,

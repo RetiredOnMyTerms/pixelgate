@@ -24,19 +24,19 @@ import {
 } from "./lib/timesgate";
 import {
   imageFileToCanvas,
-  renderBall,
   renderDigital,
+  renderNewtonsCradle,
   renderSolid,
   renderText,
 } from "./lib/render";
 
-const APP_VERSION = "0.4.1";
+const APP_VERSION = "0.4.2";
 
 type TemplateId = "solid" | "digital" | "ball" | "image" | "text";
 const TEMPLATES: { id: TemplateId; label: string }[] = [
   { id: "digital", label: "Digital clock" },
   { id: "text", label: "Text / marquee" },
-  { id: "ball", label: "Bouncing ball" },
+  { id: "ball", label: "Newton's cradle" },
   { id: "image", label: "Image upload" },
   { id: "solid", label: "Solid colour" },
 ];
@@ -101,7 +101,7 @@ export default function App() {
       case "digital":
         return renderDigital(new Date(), { bg: BG_PRESET_HEX[clockBg], color: textColor, seconds });
       case "ball":
-        return renderBall(30)[0];
+        return renderNewtonsCradle(40)[0];
       case "image":
         return imageCanvas;
       case "text":
@@ -151,7 +151,7 @@ export default function App() {
         canvases = [renderSolid(solidColor)];
         break;
       case "ball":
-        canvases = renderBall(30);
+        canvases = renderNewtonsCradle(40);
         speed = 45;
         break;
       case "image":
@@ -254,8 +254,11 @@ export default function App() {
           PixelGate <span className="badge">unofficial</span>
         </h1>
         <p className="sub">
-          Design and push visuals to a Divoom Times Gate. Not affiliated with
-          Divoom — use at your own risk. v{APP_VERSION}
+          Design and push visuals to a{" "}
+          <a href="https://divoom.com/products/time-gate" target="_blank" rel="noopener noreferrer">
+            Divoom Times Gate
+          </a>
+          . Not affiliated with Divoom — use at your own risk. v{APP_VERSION}
         </p>
       </header>
 

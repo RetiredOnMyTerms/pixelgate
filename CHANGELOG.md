@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.4.2 — 2026-07-11
+
+- **Scrolling text fixed end-to-end.** The echo Function returns the Divoom
+  net-text envelope (`ReturnCode`/`ReturnMessage`/`DispData`) — without it the
+  device showed "err at request!". Short messages are repeated with a separator
+  so the marquee always overflows and scrolls continuously.
+- **Digital clock: stacked HH:MM + seconds** now renders immediately (forced
+  NewFlag:0 repaint works around type 5 only repainting on minute change).
+- **Newton's cradle** replaces the bouncing ball (five swinging spheres).
+- Header links "Divoom Times Gate" to divoom.com/products/time-gate.
+- Removed the analog clock (static snapshot the device can't animate cleanly).
+
 ## 0.4.1 — 2026-07-11
 
 - **Scrolling text / marquee now works** — switched from the unreliable

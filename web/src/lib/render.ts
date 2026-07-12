@@ -164,6 +164,65 @@ export function renderBall(
   return out;
 }
 
+/** Newton's cradle animation frames — outer balls swing alternately. */
+export function renderNewtonsCradle(
+  frames = 40,
+  opts: { bg?: string; ball?: string } = {},
+): HTMLCanvasElement[] {
+  const bg = opts.bg ?? "#08081A";
+  const ballColor = opts.ball ?? "#C0C6D4";
+  const r = 11;
+  const n = 5;
+  const gap = 2 * r; // balls just touching
+  const pivotY = 16;
+  const L = 78; // string length
+  const startX = (IMG_SIZE - (n - 1) * gap) / 2; // centre the row
+  const pivots = Array.from({ length: n }, (_, i) => ({ x: startX + i * gap, y: pivotY }));
+  const thetaMax = 0.62;
+
+  const out: HTMLCanvasElement[] = [];
+  for (let f = 0; f < frames; f++) {
+    const s = Math.sin((f / frames) * Math.PI * 2);
+    const leftTheta = s < 0 ? s * thetaMax : 0; // negative -> swings left
+    const rightTheta = s > 0 ? s * thetaMax : 0; // positive -> swings right
+
+    const c = newCanvas();
+    const g = c.getContext("2d")!;
+    g.fillStyle = bg;
+    g.fillRect(0, 0, IMG_SIZE, IMG_SIZE);
+
+    for (let i = 0; i < n; i++) {
+      let theta = 0;
+      if (i === 0) theta = leftTheta;
+      else if (i === n - 1) theta = rightTheta;
+      const bx = pivots[i].x + L * Math.sin(theta);
+      const by = pivots[i].y + L * Math.cos(theta);
+      // string
+      g.strokeStyle = "#3A4256";
+      g.lineWidth = 1;
+      g.beginPath();
+      g.moveTo(pivots[i].x, pivots[i].y);
+      g.lineTo(bx, by);
+      g.stroke();
+      // ball
+      g.fillStyle = ballColor;
+      g.beginPath();
+      g.arc(bx, by, r, 0, Math.PI * 2);
+      g.fill();
+      // highlight
+      g.fillStyle = "rgba(255,255,255,0.85)";
+      g.beginPath();
+      g.arc(bx - r / 3, by - r / 3, r / 4, 0, Math.PI * 2);
+      g.fill();
+    }
+    // top bar
+    g.fillStyle = "#4A5268";
+    g.fillRect(startX - r, pivotY - 3, (n - 1) * gap + 2 * r, 3);
+    out.push(c);
+  }
+  return out;
+}
+
 /** Draw an uploaded image cover-fit into 128x128. */
 export async function imageFileToCanvas(file: File): Promise<HTMLCanvasElement> {
   const url = URL.createObjectURL(file);
