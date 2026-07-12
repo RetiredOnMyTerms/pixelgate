@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.6.0 — 2026-07-11
+
+- **MLB scoreboard** + generic multi-league core. The NFL widget was refactored
+  into a league-agnostic `sports.ts` (ESPN client, game model, logo pixel-art,
+  5-screen layout, polling); NFL and MLB are now thin configs (roster + how to
+  render the live middle screen). Adding NBA/NHL later is trivial.
+- The scoreboard template gains a **League** dropdown (NFL / MLB) beside the team
+  picker. MLB middle screen shows inning half + number and outs/count while live;
+  post-game shows scores + FINAL (verified against a real final game).
+- Baseball live in-game fields are built to ESPN's shape and confirmed against
+  pre/post now; the live inning/outs/count render verifies during a live game.
+
 ## 0.5.1 — 2026-07-11
 
 - Fix preview layout: the wide NFL 5-screen strip no longer crushes the Send

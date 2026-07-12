@@ -36,27 +36,33 @@ import {
 } from "./lib/render";
 import {
   fetchTeamGame,
-  fetchTeams,
+  LEAGUES,
   pollIntervalMs,
-  renderNflScreens,
-  type NflGame,
-  type NflTeam,
-} from "./lib/nfl";
+  renderScreens,
+  type Game,
+} from "./lib/sports";
 
-const APP_VERSION = "0.5.1";
+const APP_VERSION = "0.6.0";
 
-type TemplateId = "solid" | "digital" | "ball" | "image" | "text" | "nfl";
+type TemplateId = "solid" | "digital" | "ball" | "image" | "text" | "scores";
 const TEMPLATES: { id: TemplateId; label: string }[] = [
   { id: "digital", label: "Digital clock" },
   { id: "text", label: "Text / marquee" },
   { id: "ball", label: "Newton's cradle" },
   { id: "image", label: "Image upload" },
   { id: "solid", label: "Solid colour" },
-  { id: "nfl", label: "NFL scoreboard" },
+  { id: "scores", label: "Sports scoreboard" },
 ];
 
-const DEFAULT_TEAM_ID = "26"; // Seattle Seahawks
-const FAV_TEAM_KEY = "pixelgate.nflTeam";
+// Default favourite per league (Seattle: Seahawks / Mariners).
+const DEFAULT_TEAM: Record<string, string> = { nfl: "26", mlb: "12" };
+function loadFav(league: string): string {
+  return (
+    localStorage.getItem(`pixelgate.fav.${league}`) ||
+    DEFAULT_TEAM[league] ||
+    LEAGUES[league].teams[0].id
+  );
+}
 
 async function framesToB64(canvases: HTMLCanvasElement[]): Promise<string[]> {
   return Promise.all(canvases.map((c) => canvasToJpegBase64(c)));
@@ -70,8 +76,8 @@ function describeScreens(screens: number[]): string {
   return "no screens";
 }
 
-// Build the atomic 5-screen NFL push (one Draw/CommandList so screens update together).
-async function nflCommands(screens: HTMLCanvasElement[]): Promise<Command[]> {
+// Atomic 5-screen push (one Draw/CommandList so screens update together).
+async function sportsCommands(screens: HTMLCanvasElement[]): Promise<Command[]> {
   resetPicIdCounter();
   const packets: Command[] = [];
   for (let i = 0; i < SCREEN_COUNT; i++) {
@@ -118,18 +124,20 @@ export default function App() {
   const [clockY, setClockY] = useState(32);
   const [clockBg, setClockBg] = useState<BgPreset>("dark");
   const [cradleRandom, setCradleRandom] = useState(false);
-  // NFL widget
-  const [nflTeams, setNflTeams] = useState<NflTeam[]>([]);
-  const [favTeam, setFavTeam] = useState<string>(
-    () => localStorage.getItem(FAV_TEAM_KEY) || DEFAULT_TEAM_ID,
+  // sports scoreboard
+  const [league, setLeague] = useState<string>(
+    () => localStorage.getItem("pixelgate.league") || "nfl",
   );
-  const [nflGame, setNflGame] = useState<NflGame | null>(null);
-  const [nflScreens, setNflScreens] = useState<HTMLCanvasElement[]>([]);
-  const [nflStatus, setNflStatus] = useState<Friendly | null>(null);
-  const [nflAuto, setNflAuto] = useState(false);
+  const [favTeam, setFavTeam] = useState<string>(() =>
+    loadFav(localStorage.getItem("pixelgate.league") || "nfl"),
+  );
+  const [game, setGame] = useState<Game | null>(null);
+  const [scoreScreens, setScoreScreens] = useState<HTMLCanvasElement[]>([]);
+  const [scoreStatus, setScoreStatus] = useState<Friendly | null>(null);
+  const [scoreAuto, setScoreAuto] = useState(false);
 
   const previewRef = useRef<HTMLCanvasElement>(null);
-  const nflPreviewRef = useRef<HTMLCanvasElement>(null);
+  const scoresPreviewRef = useRef<HTMLCanvasElement>(null);
 
   const persist = (next: Config) => {
     setCfg(next);
@@ -144,55 +152,53 @@ export default function App() {
     checkBridge();
   }, [checkBridge]);
 
-  // Load the 32 NFL teams once (for the picker).
-  useEffect(() => {
-    fetchTeams()
-      .then(setNflTeams)
-      .catch(() => setNflStatus({ ok: false, msg: "Couldn't load NFL teams from ESPN." }));
-  }, []);
-
+  const chooseLeague = (lg: string) => {
+    setLeague(lg);
+    localStorage.setItem("pixelgate.league", lg);
+    setFavTeam(loadFav(lg));
+  };
   const chooseTeam = (id: string) => {
     setFavTeam(id);
-    localStorage.setItem(FAV_TEAM_KEY, id);
+    localStorage.setItem(`pixelgate.fav.${league}`, id);
   };
 
   // Fetch the team's game + render the 5 screens (for preview and manual send).
-  const refreshNfl = useCallback(async () => {
-    setNflStatus(null);
+  const refreshScores = useCallback(async () => {
+    setScoreStatus(null);
     try {
-      const game = await fetchTeamGame(favTeam);
-      if (!game) {
-        setNflGame(null);
-        setNflScreens([]);
-        setNflStatus({ ok: false, msg: "No game data for that team right now." });
+      const lg = LEAGUES[league];
+      const g = await fetchTeamGame(lg.path, favTeam);
+      if (!g) {
+        setGame(null);
+        setScoreScreens([]);
+        setScoreStatus({ ok: false, msg: "No game data for that team right now." });
         return;
       }
-      setNflGame(game);
-      setNflScreens(await renderNflScreens(game));
+      setGame(g);
+      setScoreScreens(await renderScreens(g, lg));
     } catch {
-      setNflStatus({ ok: false, msg: "Couldn't reach ESPN — try again." });
+      setScoreStatus({ ok: false, msg: "Couldn't reach ESPN — try again." });
     }
-  }, [favTeam]);
+  }, [league, favTeam]);
 
-  // Refresh when the NFL widget becomes active or the team changes; the widget
-  // always drives all 5 screens.
+  // Refresh when the widget becomes active or league/team changes; it drives all 5.
   useEffect(() => {
-    if (template === "nfl") {
+    if (template === "scores") {
       setScreens([0, 1, 2, 3, 4]);
-      refreshNfl();
+      refreshScores();
     }
-  }, [template, favTeam, refreshNfl]);
+  }, [template, league, favTeam, refreshScores]);
 
-  // Draw the 5-screen NFL preview strip.
+  // Draw the 5-screen scoreboard preview strip.
   useEffect(() => {
-    const cv = nflPreviewRef.current;
+    const cv = scoresPreviewRef.current;
     if (!cv) return;
     const g = cv.getContext("2d")!;
     g.imageSmoothingEnabled = false;
     g.fillStyle = "#000";
     g.fillRect(0, 0, cv.width, cv.height);
-    nflScreens.forEach((s, i) => g.drawImage(s, i * 128, 0));
-  }, [nflScreens]);
+    scoreScreens.forEach((s, i) => g.drawImage(s, i * 128, 0));
+  }, [scoreScreens]);
 
   // Build the preview frame (first frame of the current template).
   const buildPreview = useCallback(async (): Promise<HTMLCanvasElement | null> => {
@@ -207,8 +213,8 @@ export default function App() {
         return imageCanvas;
       case "text":
         return renderText(textValue, textColor, BG_PRESET_HEX[textBg]);
-      case "nfl":
-        return null; // NFL uses its own 5-screen preview strip
+      case "scores":
+        return null; // uses its own 5-screen preview strip
     }
   }, [template, solidColor, textColor, textValue, seconds, imageCanvas, clockBg, textBg]);
 
@@ -245,16 +251,17 @@ export default function App() {
     if (template === "text") {
       return buildScrollingText(screens, { text: textValue, color: textColor, bg: textBg });
     }
-    // NFL scoreboard: push all 5 screens together (uses the already-rendered
+    // Sports scoreboard: push all 5 screens together (uses already-rendered
     // preview screens when available, else fetches fresh).
-    if (template === "nfl") {
-      let sc = nflScreens;
+    if (template === "scores") {
+      let sc = scoreScreens;
       if (sc.length !== SCREEN_COUNT) {
-        const game = nflGame ?? (await fetchTeamGame(favTeam));
-        if (!game) throw new Error("no NFL game data");
-        sc = await renderNflScreens(game);
+        const lg = LEAGUES[league];
+        const g = game ?? (await fetchTeamGame(lg.path, favTeam));
+        if (!g) throw new Error("no game data");
+        sc = await renderScreens(g, lg);
       }
-      return nflCommands(sc);
+      return sportsCommands(sc);
     }
     const cmds: Command[] = [resetHttpGifId()];
     resetPicIdCounter();
@@ -263,9 +270,6 @@ export default function App() {
     if (template === "ball") {
       const numSwing = cradleRandom ? (Math.random() < 0.5 ? 1 : 2) : 1;
       if (screens.length === SCREEN_COUNT) {
-        // All 5 screens: build every screen's frames into ONE Draw/CommandList
-        // so the device starts them together (independent per-screen loops would
-        // otherwise drift out of phase). Fewer frames keeps the payload sane.
         const FRAMES = 24;
         const packets: Command[] = [];
         for (let i = 0; i < SCREEN_COUNT; i++) {
@@ -306,31 +310,32 @@ export default function App() {
   }, [
     template, screens, solidColor, textColor, textValue, seconds,
     imageCanvas, clockBig, clockX, clockY, clockBg, textBg, cradleRandom,
-    nflScreens, nflGame, favTeam,
+    scoreScreens, game, league, favTeam,
   ]);
 
-  // Auto-refresh polling for the NFL widget: fast while live, slow when idle.
+  // Auto-refresh polling for the scoreboard: fast while live, slow when idle.
   useEffect(() => {
-    if (!(nflAuto && template === "nfl" && bridge.ok && cfg.deviceIp && cfg.localToken)) return;
+    if (!(scoreAuto && template === "scores" && bridge.ok && cfg.deviceIp && cfg.localToken)) return;
     let stopped = false;
     let timer: number | undefined;
+    const lg = LEAGUES[league];
     const tick = async () => {
       if (stopped) return;
       try {
-        const game = await fetchTeamGame(favTeam);
-        if (game) {
-          const sc = await renderNflScreens(game);
-          setNflGame(game);
-          setNflScreens(sc);
-          const cmds = (await nflCommands(sc)).map((c) => ({
+        const g = await fetchTeamGame(lg.path, favTeam);
+        if (g) {
+          const sc = await renderScreens(g, lg);
+          setGame(g);
+          setScoreScreens(sc);
+          const cmds = (await sportsCommands(sc)).map((c) => ({
             ...c, LocalToken: Number(cfg.localToken),
           }));
           await pushSequence(cfg.bridgePort, cfg.deviceIp, cmds);
-          setNflStatus({
+          setScoreStatus({
             ok: true,
-            msg: `Updated ${new Date().toLocaleTimeString()} · ${game.state === "in" ? "LIVE" : game.state}`,
+            msg: `Updated ${new Date().toLocaleTimeString()} · ${g.state === "in" ? "LIVE" : g.state}`,
           });
-          if (!stopped) timer = window.setTimeout(tick, pollIntervalMs(game));
+          if (!stopped) timer = window.setTimeout(tick, pollIntervalMs(g));
         } else if (!stopped) {
           timer = window.setTimeout(tick, 7 * 60_000);
         }
@@ -343,9 +348,9 @@ export default function App() {
       stopped = true;
       if (timer) clearTimeout(timer);
     };
-  }, [nflAuto, template, bridge.ok, cfg.deviceIp, cfg.localToken, cfg.bridgePort, favTeam]);
+  }, [scoreAuto, template, bridge.ok, cfg.deviceIp, cfg.localToken, cfg.bridgePort, league, favTeam]);
 
-  // Core push, shared by the manual Send button and the live re-push tick.
+  // Core push, shared by the manual Send button.
   const doPush = useCallback(async (): Promise<Friendly> => {
     const cmds = await buildCommands();
     if (!bridge.ok) {
@@ -421,6 +426,8 @@ export default function App() {
       setVerifyMsg({ ok: false, msg: "Discover failed — is the local bridge running?" });
     }
   };
+
+  const isScores = template === "scores";
 
   return (
     <div className="app">
@@ -635,32 +642,41 @@ export default function App() {
               </span>
             </>
           )}
-          {template === "nfl" && (
+          {isScores && (
             <>
-              <label className="grow">
-                Team
-                <select value={favTeam} onChange={(e) => chooseTeam(e.target.value)}>
-                  {nflTeams.length === 0 && <option>Loading teams…</option>}
-                  {nflTeams.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {t.displayName}
+              <label>
+                League
+                <select value={league} onChange={(e) => chooseLeague(e.target.value)}>
+                  {Object.values(LEAGUES).map((l) => (
+                    <option key={l.id} value={l.id}>
+                      {l.name}
                     </option>
                   ))}
                 </select>
               </label>
-              <button onClick={refreshNfl}>Refresh</button>
+              <label className="grow">
+                Team
+                <select value={favTeam} onChange={(e) => chooseTeam(e.target.value)}>
+                  {LEAGUES[league].teams.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <button onClick={refreshScores}>Refresh</button>
               <label className="check" title="Poll ESPN and re-push automatically — fast (~12s) while a game is live, slow (~7 min) otherwise.">
-                <input type="checkbox" checked={nflAuto} onChange={(e) => setNflAuto(e.target.checked)} />
+                <input type="checkbox" checked={scoreAuto} onChange={(e) => setScoreAuto(e.target.checked)} />
                 auto-update (fast when live)
               </label>
-              {nflGame && (
+              {game && (
                 <span className="hint">
-                  {nflGame.away.abbr} @ {nflGame.home.abbr} ·{" "}
-                  {nflGame.state === "pre" ? "upcoming" : nflGame.state === "in" ? "LIVE" : "final"}
+                  {game.away.abbr} @ {game.home.abbr} ·{" "}
+                  {game.state === "pre" ? "upcoming" : game.state === "in" ? "LIVE" : "final"}
                 </span>
               )}
-              {nflStatus && (
-                <span className={nflStatus.ok ? "livemsg" : "bad"}>{nflStatus.msg}</span>
+              {scoreStatus && (
+                <span className={scoreStatus.ok ? "livemsg" : "bad"}>{scoreStatus.msg}</span>
               )}
             </>
           )}
@@ -671,18 +687,18 @@ export default function App() {
         <h2>4. Preview & send</h2>
         <div className="preview-wrap">
           <canvas
-            ref={nflPreviewRef}
+            ref={scoresPreviewRef}
             width={640}
             height={128}
             className="preview-strip"
-            style={{ display: template === "nfl" ? "block" : "none" }}
+            style={{ display: isScores ? "block" : "none" }}
           />
           <canvas
             ref={previewRef}
             width={128}
             height={128}
             className="preview"
-            style={{ display: template === "nfl" ? "none" : "block" }}
+            style={{ display: isScores ? "none" : "block" }}
           />
           <div className="send-col">
             <button className="send" disabled={busy || !screens.length} onClick={send}>
