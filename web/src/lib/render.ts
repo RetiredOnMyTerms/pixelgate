@@ -345,6 +345,27 @@ export function labelTile(logo: HTMLCanvasElement, label: string): HTMLCanvasEle
   return c;
 }
 
+/** Airport screen: the universal departure (🛫) / arrival (🛬) plane pictogram
+ * above the airport code. */
+export function renderAirport(
+  code: string,
+  departing: boolean,
+  opts: { bg?: string; color?: string } = {},
+): HTMLCanvasElement {
+  const c = newCanvas();
+  const g = c.getContext("2d")!;
+  g.fillStyle = opts.bg ?? "#000000";
+  g.fillRect(0, 0, IMG_SIZE, IMG_SIZE);
+  g.textAlign = "center";
+  g.textBaseline = "middle";
+  g.font = "58px 'Segoe UI Emoji', 'Noto Color Emoji', 'Apple Color Emoji', sans-serif";
+  g.fillText(departing ? "🛫" : "🛬", IMG_SIZE / 2, 46);
+  g.fillStyle = opts.color ?? "#7FE9FF";
+  fitFont(g, code || "—", 118, 40);
+  g.fillText(code || "—", IMG_SIZE / 2, 98);
+  return c;
+}
+
 /** Three stacked centred lines (e.g. departure / arrival / time remaining). */
 export function renderThreeLine(
   l1: string,

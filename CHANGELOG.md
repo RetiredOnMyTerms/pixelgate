@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.3 — 2026-07-12
+
+- Flight tracker airport screens now show the universal departure (🛫) and
+  arrival (🛬) plane pictograms above the airport code, instead of just the code.
+
 ## 0.9.2 — 2026-07-12
 
 - Flight tracker respects AviationStack's free tier (100 requests/month):

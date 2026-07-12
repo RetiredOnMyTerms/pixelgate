@@ -8,7 +8,7 @@ Design and push custom pixel visuals, animations, clocks, and live data to a
 > local device API that may change or break. **Use at your own risk** — see
 > [`docs/DISCLAIMER.md`](docs/DISCLAIMER.md).
 
-**Version:** 0.9.2 · [Changelog](CHANGELOG.md) · [Acknowledgements](docs/ACKNOWLEDGEMENTS.md)
+**Version:** 0.9.3 · [Changelog](CHANGELOG.md) · [Acknowledgements](docs/ACKNOWLEDGEMENTS.md)
 
 ## Why a bridge?
 

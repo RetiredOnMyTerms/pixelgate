@@ -3,7 +3,7 @@
 // Airline logos go through our keyless logo proxy (Kiwi source + CORS), then the
 // same pixel-art pipeline as team logos.
 
-import { labelTile, renderBigText, renderThreeLine } from "./render";
+import { labelTile, renderAirport, renderBigText, renderThreeLine } from "./render";
 import { logoPixelArt } from "./sports";
 
 const AS_BASE = "https://api.aviationstack.com/v1/flights";
@@ -180,14 +180,14 @@ const logoUrl = (iata: string) => `${LOGO_PROXY}?iata=${encodeURIComponent(iata)
  */
 export async function renderFlightScreens(f: FlightInfo): Promise<HTMLCanvasElement[]> {
   const logo = labelTile(await logoPixelArt(logoUrl(f.airlineIata)), f.airlineIata || "✈");
-  const s1 = renderBigText(f.dep.iata, { color: "#7FE9FF" });
+  const s1 = renderAirport(f.dep.iata, true); // 🛫 departure
   const s2 = renderThreeLine(
     `Dep ${localTime(f.dep.estimated || f.dep.scheduled)}`,
     `Arr ${localTime(f.arr.estimated || f.arr.scheduled)}`,
     remainingLabel(f),
     { c3: f.status === "active" ? "#FFB000" : "#00E5FF" },
   );
-  const s3 = renderBigText(f.arr.iata, { color: "#7FE9FF" });
+  const s3 = renderAirport(f.arr.iata, false); // 🛬 arrival
   const s4 = renderBigText(f.code, { color: "#FFFFFF", size: 42 });
   return [logo, s1, s2, s3, s4];
 }
